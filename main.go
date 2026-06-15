@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/spf13/cobra"
 )
 
 func main() {
@@ -18,68 +20,94 @@ func main() {
 	}
 }
 
-func usage(out io.Writer) {
-	fmt.Fprintf(out, `hydra %s — self-improving skill curator
-
-Usage:
-  hydra init    [--global]   scaffold the curator into a project (or globally)
-  hydra sync    [--global]   rebuild skill symlinks from .hydra/skills/
-  hydra new <name> [--global]
-  hydra log <CREATE|UPDATE|RENAME> <skill> <reason> [--global]
-  hydra doctor  [--global]   verify install health
-  hydra version | help
-`, version())
+// run builds the root command and executes it against args. It is the testable
+// seam: tests drive the CLI through here with in-memory writers.
+func run(args []string, out, errw io.Writer) error {
+	root := newRootCmd(out, errw)
+	root.SetArgs(args)
+	root.SetOut(out)
+	root.SetErr(errw)
+	return root.Execute()
 }
 
-func run(args []string, out, errw io.Writer) error {
-	global := false
-	var pos []string
-	for _, a := range args {
-		if a == "--global" {
-			global = true
-		} else {
-			pos = append(pos, a)
-		}
-	}
-	cmd := "help"
-	if len(pos) > 0 {
-		cmd = pos[0]
-		pos = pos[1:]
-	}
-
+// scopeFromCmd resolves the active Scope honoring the persistent --global flag.
+func scopeFromCmd(cmd *cobra.Command) Scope {
+	global, _ := cmd.Flags().GetBool("global")
 	cwd, _ := os.Getwd()
 	home, _ := os.UserHomeDir()
-	s := ResolveScope(global, cwd, home)
+	return ResolveScope(global, cwd, home)
+}
 
-	switch cmd {
-	case "init":
-		return Init(s, out)
-	case "sync":
-		return Sync(s, out)
-	case "new":
-		name := ""
-		if len(pos) > 0 {
-			name = pos[0]
-		}
-		return New(s, name, out)
-	case "log":
-		if len(pos) < 3 {
-			return errors.New("usage: hydra log <CREATE|UPDATE|RENAME> <skill> <reason>")
-		}
-		return Log(s, pos[0], pos[1], strings.Join(pos[2:], " "), out, time.Now().Format("2006-01-02"))
-	case "doctor":
-		if !Doctor(s, out) {
-			return errors.New("") // already printed "doctor: FAIL"; exit 1 without re-printing
-		}
-		return nil
-	case "version", "--version", "-v":
-		fmt.Fprintf(out, "hydra %s\n", version())
-		return nil
-	case "help", "--help", "-h", "":
-		usage(out)
-		return nil
-	default:
-		usage(errw)
-		return fmt.Errorf("unknown command: %s", cmd)
+func newRootCmd(out, errw io.Writer) *cobra.Command {
+	root := &cobra.Command{
+		Use:   "hydra",
+		Short: "hydra — self-improving skill curator",
+		Long:  fmt.Sprintf("hydra %s — self-improving skill curator", version()),
+		// Subcommands handle their own error reporting; don't let cobra dump
+		// usage text or re-print returned errors (main handles that).
+		SilenceUsage:  true,
+		SilenceErrors: true,
 	}
+	root.PersistentFlags().Bool("global", false, "operate on the global scope instead of the current project")
+
+	root.AddCommand(&cobra.Command{
+		Use:   "init",
+		Short: "scaffold the curator into a project (or globally)",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return Init(scopeFromCmd(cmd), out)
+		},
+	})
+
+	root.AddCommand(&cobra.Command{
+		Use:   "sync",
+		Short: "rebuild skill symlinks from .hydra/skills/",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return Sync(scopeFromCmd(cmd), out)
+		},
+	})
+
+	root.AddCommand(&cobra.Command{
+		Use:   "new <name>",
+		Short: "create a new skill scaffold",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return New(scopeFromCmd(cmd), args[0], out)
+		},
+	})
+
+	root.AddCommand(&cobra.Command{
+		Use:   "log <CREATE|UPDATE|RENAME> <skill> <reason>",
+		Short: "append an entry to the curator log",
+		Args:  cobra.MinimumNArgs(3),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return Log(scopeFromCmd(cmd), args[0], args[1], strings.Join(args[2:], " "), out, time.Now().Format("2006-01-02"))
+		},
+	})
+
+	root.AddCommand(&cobra.Command{
+		Use:   "doctor",
+		Short: "verify install health",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if !Doctor(scopeFromCmd(cmd), out) {
+				// Doctor already printed "doctor: FAIL"; return an empty-message
+				// error so main exits 1 without re-printing anything.
+				return errors.New("")
+			}
+			return nil
+		},
+	})
+
+	root.AddCommand(&cobra.Command{
+		Use:   "version",
+		Short: "print the hydra version",
+		Args:  cobra.NoArgs,
+		Run: func(cmd *cobra.Command, _ []string) {
+			fmt.Fprintf(out, "hydra %s\n", version())
+		},
+	})
+
+	return root
 }
