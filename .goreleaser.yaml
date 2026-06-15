@@ -1,0 +1,45 @@
+# goreleaser v2 config — builds prebuilt hydra binaries on a version tag.
+# Validate locally with: goreleaser check
+version: 2
+
+project_name: hydra
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: hydra
+    main: .
+    binary: hydra
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.injectedVersion={{ .Version }}
+
+archives:
+  - id: hydra
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  draft: false
+  prerelease: auto

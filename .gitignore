@@ -10,3 +10,8 @@
 # Python bytecode
 __pycache__/
 *.pyc
+
+# Go build output
+/hydra
+*.test
+/dist/
