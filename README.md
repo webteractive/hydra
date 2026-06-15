@@ -54,12 +54,14 @@ library with `hydra new <name>`; each project's skills live under its own `.hydr
 
 ## Install the `hydra` CLI
 
-`hydra` is a single self-contained Go binary.
+`hydra` is a single self-contained Go binary. Install it with:
 
 ```bash
-go install github.com/webteractive/hydra@latest   # from source (needs Go 1.26+)
-# or download a prebuilt binary from Releases onto your PATH
+curl -fsSL https://raw.githubusercontent.com/webteractive/hydra/main/install.sh | sh
 ```
+
+This downloads the prebuilt binary for your platform from the latest release, verifies its
+checksum, and installs it to `~/.local/bin`.
 
 ### Add the curator to a project
 
