@@ -44,16 +44,13 @@ Running `hydra init` in a project scaffolds a `.hydra/` directory (or `~/.hydra/
 | `CLAUDE.md` / `AGENTS.md` | Agent-facing operating instructions (mirror copies). |
 
 The CLI itself is a single Go binary; the source of truth is the `*.go` files plus the
-`assets/` directory (embedded via `//go:embed`), with the project's own design docs in
-`docs/`. There is no asset build step.
+`assets/` directory (embedded via `//go:embed`). There is no asset build step.
 
-## Skills
+## The seeded skill
 
-| Skill | Use it when… |
-| --- | --- |
-| `skill-curator` | …starting any real, non-trivial task — to curate the library before doing the work. |
-| `example-skill` | …you need to block/list/unblock an IP (or range/ASN/country) at the Cloudflare edge. Ships a stdlib-only `example.py` helper. |
-| `example-skill` | …reading logs from a Laravel Forge–managed server via the `forge` CLI (app, per-site Nginx, PHP-FPM, deploy, DB, daemon). |
+`hydra init` seeds one skill into every project — **`skill-curator`** — which drives the
+curator loop above (scan → decide → build/update/use/inline). From there you grow your own
+library with `hydra new <name>`; each project's skills live under its own `.hydra/skills/`.
 
 ## Install the `hydra` CLI
 
