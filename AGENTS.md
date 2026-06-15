@@ -3,7 +3,7 @@
 This file provides guidance to AI coding agents when working with code in this repository.
 It mirrors `CLAUDE.md` — keep the two in sync (see Rules).
 
-# skiller — self-improving skill builder/curator
+# hydra — self-improving skill builder/curator
 
 > **Hydra** — every unsolved problem becomes a new head (skill). Cut one off, two grow
 > back; the "do it inline" branch is the cauterizing iron that stops it sprawling into
