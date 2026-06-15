@@ -1,0 +1,3 @@
+# hydra project config — sourced as shell KEY=value.
+# Which agent runtimes to expose skills to (space-separated): claude, agents.
+HYDRA_RUNTIMES="claude agents"
