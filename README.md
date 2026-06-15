@@ -113,11 +113,3 @@ go test ./...    # full suite
 go vet ./...
 go build -o hydra .
 ```
-
-## Conventions
-
-- **`CLAUDE.md` and `AGENTS.md` are mirrors** — they share one body (only the title/intro
-  differs). Any edit to one must be replicated to the other in the same change.
-- **Never auto-commit or push.** Write and sync freely; the git diff is the review gate.
-- Scope is project-local by default; pass `--global` to any command to manage the library
-  in `~/.hydra/`, wired into `~/.claude` and `~/.agents`.
