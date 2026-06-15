@@ -4,6 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 # skiller — self-improving skill builder/curator
 
+> **Hydra** — every unsolved problem becomes a new head (skill). Cut one off, two grow
+> back; the "do it inline" branch is the cauterizing iron that stops it sprawling into
+> useless heads.
+
 This project curates a library of skills. Before any real task, the `skill-curator`
 skill decides whether to build a new skill, update a weak one, or just use what exists.
 The deliverable of most sessions is a *skill*, not a one-off answer — when you solve a
