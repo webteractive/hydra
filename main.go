@@ -109,5 +109,7 @@ func newRootCmd(out, errw io.Writer) *cobra.Command {
 		},
 	})
 
+	root.AddCommand(newSelfUpdateCmd(out))
+
 	return root
 }
