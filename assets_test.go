@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -19,7 +20,11 @@ func TestEmbeddedAssets(t *testing.T) {
 	if !strings.Contains(string(assetBytes("curator-reminder.sh")), "skill-curator") {
 		t.Fatal("hook missing nudge text")
 	}
-	if v := version(); v != "0.1.0" {
-		t.Fatalf("version = %q, want 0.1.0", v)
+	want, err := os.ReadFile("VERSION")
+	if err != nil {
+		t.Fatalf("read VERSION: %v", err)
+	}
+	if v := version(); v != strings.TrimSpace(string(want)) {
+		t.Fatalf("version = %q, want %q", v, strings.TrimSpace(string(want)))
 	}
 }
