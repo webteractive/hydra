@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -41,8 +42,8 @@ func scopeFromCmd(cmd *cobra.Command) Scope {
 func newRootCmd(out, errw io.Writer) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "hydra",
-		Short: "hydra — self-improving skill curator",
-		Long:  fmt.Sprintf("hydra %s — self-improving skill curator", version()),
+		Short: "hydra — skill library manager for AI coding agents",
+		Long:  fmt.Sprintf("hydra %s — manage a library of reusable skills for AI coding agents (Claude Code and others).", version()),
 		// Subcommands handle their own error reporting; don't let cobra dump
 		// usage text or re-print returned errors (main handles that).
 		SilenceUsage:  true,
@@ -86,19 +87,33 @@ func newRootCmd(out, errw io.Writer) *cobra.Command {
 		},
 	})
 
-	root.AddCommand(&cobra.Command{
+	doctorCmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "verify install health",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if !Doctor(scopeFromCmd(cmd), out) {
-				// Doctor already printed "doctor: FAIL"; return an empty-message
-				// error so main exits 1 without re-printing anything.
+			rep := Doctor(scopeFromCmd(cmd))
+			if asJSON, _ := cmd.Flags().GetBool("json"); asJSON {
+				b, err := json.MarshalIndent(rep, "", "  ")
+				if err != nil {
+					return err
+				}
+				fmt.Fprintln(out, string(b))
+			} else {
+				renderDoctorText(rep, out)
+			}
+			if !rep.OK {
+				// Return an empty-message error so main exits 1 without
+				// re-printing anything (doctor already reported the failure).
 				return errors.New("")
 			}
 			return nil
 		},
-	})
+	}
+	doctorCmd.Flags().Bool("json", false, "output as JSON")
+	root.AddCommand(doctorCmd)
+
+	root.AddCommand(newListCmd(out))
 
 	root.AddCommand(&cobra.Command{
 		Use:   "version",

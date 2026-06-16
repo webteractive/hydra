@@ -7,20 +7,32 @@ import (
 	"path/filepath"
 )
 
-func Doctor(s Scope, out io.Writer) bool {
-	ok := true
-	check := func(cond bool, label string) {
-		if cond {
-			fmt.Fprintf(out, "  ✓ %s\n", label)
-		} else {
-			fmt.Fprintf(out, "  ✗ %s\n", label)
-			ok = false
+type DoctorCheck struct {
+	Name string `json:"name"`
+	OK   bool   `json:"ok"`
+}
+
+type DoctorReport struct {
+	Scope  string        `json:"scope"`
+	Home   string        `json:"home"`
+	OK     bool          `json:"ok"`
+	Checks []DoctorCheck `json:"checks"`
+}
+
+// Doctor inspects an install and returns a structured report. It performs no I/O
+// on the output; rendering is the caller's job (see renderDoctorText).
+func Doctor(s Scope) DoctorReport {
+	rep := DoctorReport{Scope: s.Label, Home: s.Home, OK: true}
+	add := func(name string, cond bool) {
+		rep.Checks = append(rep.Checks, DoctorCheck{Name: name, OK: cond})
+		if !cond {
+			rep.OK = false
 		}
 	}
-	fmt.Fprintf(out, "hydra doctor (%s: %s)\n", s.Label, s.Home)
-	check(isDir(filepath.Join(s.Home, "skills")), "skills dir present")
-	check(exists(filepath.Join(s.Home, "skills", "skill-curator", "SKILL.md")), "skill-curator seeded")
-	check(exists(filepath.Join(s.Home, "curator-reminder.sh")), "hook script present")
+
+	add("skills dir present", isDir(filepath.Join(s.Home, "skills")))
+	add("skill-curator seeded", exists(filepath.Join(s.Home, "skills", "skill-curator", "SKILL.md")))
+	add("hook script present", exists(filepath.Join(s.Home, "curator-reminder.sh")))
 
 	for _, t := range s.RuntimeTargets(runtimes(s)) {
 		entries, err := os.ReadDir(t)
@@ -33,19 +45,31 @@ func Doctor(s Scope, out io.Writer) bool {
 			if err != nil || fi.Mode()&os.ModeSymlink == 0 {
 				continue
 			}
-			check(resolves(link), "symlink resolves: "+link)
+			add("symlink resolves: "+link, resolves(link))
 		}
 	}
 
-	check(fileContains(s.Settings, "curator-reminder.sh"), "hook wired in "+s.Settings)
+	add("hook wired in "+s.Settings, fileContains(s.Settings, "curator-reminder.sh"))
 	for _, md := range s.ClaudeMDs {
-		check(fileContains(md, "hydra:curator:start"), "curator block in "+md)
+		add("curator block in "+md, fileContains(md, "hydra:curator:start"))
 	}
 
-	if ok {
+	return rep
+}
+
+// renderDoctorText reproduces the legacy human-readable doctor output.
+func renderDoctorText(r DoctorReport, out io.Writer) {
+	fmt.Fprintf(out, "hydra doctor (%s: %s)\n", r.Scope, r.Home)
+	for _, c := range r.Checks {
+		if c.OK {
+			fmt.Fprintf(out, "  ✓ %s\n", c.Name)
+		} else {
+			fmt.Fprintf(out, "  ✗ %s\n", c.Name)
+		}
+	}
+	if r.OK {
 		fmt.Fprintln(out, "doctor: PASS")
 	} else {
 		fmt.Fprintln(out, "doctor: FAIL")
 	}
-	return ok
 }
