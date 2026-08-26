@@ -107,11 +107,10 @@ func hasV01Artifacts(s Scope) bool {
 			return true
 		}
 	}
-	for _, dir := range []string{
-		filepath.Join(s.Base, ".claude", "skills"),
-		filepath.Join(s.Base, ".agents", "skills"),
-	} {
-		if isDir(dir) {
+	// A skills directory existing proves nothing — globally it is shared with
+	// skillset, dotfiles, and plugins. Only links into our own library count.
+	for _, dir := range skillFarms(s) {
+		if stale, _ := staleLinks(dir, ownedSkillDirs(s)); len(stale) > 0 {
 			return true
 		}
 	}
