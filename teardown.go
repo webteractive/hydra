@@ -106,17 +106,11 @@ func hydraOwnedLinks(dir string, skillsDirs []string) []string {
 		if err != nil || fi.Mode()&os.ModeSymlink == 0 {
 			continue
 		}
-		// Readlink, not EvalSymlinks: a dangling link still names its target,
-		// and dangling links are exactly what a stale farm is made of.
-		target, err := os.Readlink(link)
-		if err != nil {
+		target := resolveLink(link)
+		if target == "" {
 			continue
 		}
-		if !filepath.IsAbs(target) {
-			target = filepath.Join(dir, target)
-		}
-		parent := filepath.Dir(filepath.Clean(target))
-		if slices.Contains(skillsDirs, parent) {
+		if slices.Contains(skillsDirs, filepath.Dir(target)) {
 			owned = append(owned, link)
 		}
 	}
@@ -138,8 +132,10 @@ func staleLinks(dir string, skillsDirs []string) (stale, live []string) {
 	return stale, live
 }
 
-// resolveLink returns a symlink's target as an absolute path, without requiring
-// it to exist.
+// resolveLink returns a symlink's target as a cleaned absolute path, without
+// requiring the target to exist. Readlink, not EvalSymlinks: a dangling link
+// still names its target, and dangling links are exactly what a stale farm is
+// made of. Returns "" when the link cannot be read.
 func resolveLink(link string) string {
 	target, err := os.Readlink(link)
 	if err != nil {

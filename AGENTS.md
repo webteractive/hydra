@@ -13,6 +13,13 @@ Commands: `init`, `sync`, `add`, `new`, `list`, `doctor`, `self-update`.
 ## Build & test
 - `go test ./...` — full suite (temp-dir based, no network).
 - `go vet ./...` and `gofmt -l .` — must be clean (CI enforces both).
+- `govulncheck ./...` — must report no vulnerabilities (CI enforces). Findings here are
+  usually standard-library ones cleared by a Go patch release rather than by code changes.
+  `go.mod` carries a `toolchain` floor for exactly that reason: raise it when a new
+  advisory lands, and every build — local, CI, and release — honours it without anyone
+  needing the right Go installed system-wide.
+- `goreleaser check` — validates `.goreleaser.yaml` (CI enforces, so a broken release
+  config surfaces on the PR rather than after a tag is pushed).
 - `go build -o hydra .` — local binary (gitignored).
 - The CLI is parsed with `spf13/cobra`. Command logic lives in decoupled functions
   (`Init`/`Sync`/`Add`/`New`/`List`/`Doctor`) that take a resolved `Scope` plus an

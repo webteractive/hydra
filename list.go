@@ -50,7 +50,11 @@ func newListCmd(out io.Writer) *cobra.Command {
 		Short: "list rules in the library",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			rules, err := List(scopeFromCmd(cmd))
+			s, err := scopeFromCmd(cmd)
+			if err != nil {
+				return err
+			}
+			rules, err := List(s)
 			if err != nil {
 				return err
 			}

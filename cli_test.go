@@ -108,3 +108,20 @@ func TestRunSyncUninitializedFails(t *testing.T) {
 		t.Error("sync on an uninitialized project should fail")
 	}
 }
+
+// filepath.Join("", ".hydra") is ".hydra", so a swallowed UserHomeDir failure
+// would point --global at the current directory and scaffold there while
+// reporting success. It must fail loudly instead.
+func TestRunGlobalFailsWithoutHome(t *testing.T) {
+	tmp := t.TempDir()
+	t.Chdir(tmp)
+	t.Setenv("HOME", "")
+
+	out, err := runCLI(t, "init", "--global")
+	if err == nil {
+		t.Fatalf("expected an error when the home directory cannot be resolved; out=%q", out)
+	}
+	if exists(filepath.Join(tmp, ".hydra")) {
+		t.Error("a failed --global must not scaffold into the current directory")
+	}
+}

@@ -61,6 +61,8 @@ func Doctor(s Scope) DoctorReport {
 	}
 
 	indexPath := filepath.Join(s.RulesDir, indexFilename)
+	// A missing index reads as "", which never equals a render — so the check
+	// fails and reports "run 'hydra sync'", which is the right advice either way.
 	current, _ := os.ReadFile(indexPath)
 	add("index.md is current", string(current) == RenderIndex(s, rules), sevWarning, "run 'hydra sync'")
 
