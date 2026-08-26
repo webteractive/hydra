@@ -139,3 +139,60 @@ func TestAddRequiresTitleNoteAndMatcher(t *testing.T) {
 		}
 	}
 }
+
+func TestAddTitleDerivedAreaHasNoDuplicateHeading(t *testing.T) {
+	s, tmp := addScope(t)
+	var out bytes.Buffer
+	req := AddRequest{Title: "Never commit automatically", Note: "Ask first.", Always: true}
+	if err := Add(s, req, &out); err != nil {
+		t.Fatal(err)
+	}
+	got := readFile(t, filepath.Join(tmp, ".hydra", "rules", "never-commit-automatically.md"))
+	if strings.Contains(got, "## Never commit automatically") {
+		t.Errorf("title-derived area should not repeat the title as an entry heading:\n%s", got)
+	}
+	if !strings.Contains(got, "# Never commit automatically") {
+		t.Errorf("file heading should be the title verbatim:\n%s", got)
+	}
+	if !strings.Contains(got, "Ask first.") {
+		t.Errorf("note missing:\n%s", got)
+	}
+}
+
+// Trigger-only rules have no structural area to group by, so each becomes its
+// own file rather than piling into a shared one.
+func TestAddTriggerOnlyRulesGetTheirOwnFiles(t *testing.T) {
+	s, tmp := addScope(t)
+	var out bytes.Buffer
+	if err := Add(s, AddRequest{Title: "Release Process", Note: "Tag then push.", Triggers: []string{"cutting a release"}}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if err := Add(s, AddRequest{Title: "Sign the tag", Note: "Use GPG.", Triggers: []string{"cutting a release"}}, &out); err != nil {
+		t.Fatal(err)
+	}
+	first := readFile(t, filepath.Join(tmp, ".hydra", "rules", "release-process.md"))
+	if !strings.Contains(first, "# Release Process") || !strings.Contains(first, "Tag then push.") {
+		t.Errorf("release-process.md wrong:\n%s", first)
+	}
+	second := readFile(t, filepath.Join(tmp, ".hydra", "rules", "sign-the-tag.md"))
+	if !strings.Contains(second, "# Sign the tag") || !strings.Contains(second, "Use GPG.") {
+		t.Errorf("sign-the-tag.md wrong:\n%s", second)
+	}
+}
+
+// A rule filed under a structural area (a glob) does get a "## Title" entry, so
+// several rules can share one area file.
+func TestAddGlobAreaKeepsEntryHeadings(t *testing.T) {
+	s, tmp := addScope(t)
+	var out bytes.Buffer
+	if err := Add(s, AddRequest{Title: "Extend BaseController", Note: "n1", Paths: []string{"app/Http/Controllers/**"}}, &out); err != nil {
+		t.Fatal(err)
+	}
+	got := readFile(t, filepath.Join(tmp, ".hydra", "rules", "controllers.md"))
+	if !strings.Contains(got, "# Controllers") {
+		t.Errorf("file heading should name the area:\n%s", got)
+	}
+	if !strings.Contains(got, "## Extend BaseController") {
+		t.Errorf("entry heading missing:\n%s", got)
+	}
+}

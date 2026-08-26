@@ -51,9 +51,15 @@ func Add(s Scope, req AddRequest, out io.Writer) error {
 	target, existing := findArea(rules, area)
 
 	rule := Rule{Name: target, Path: filepath.Join(s.RulesDir, target+".md")}
-	if existing != nil {
+	switch {
+	case existing != nil:
 		rule = *existing
-	} else {
+	case area == slugify(req.Title):
+		// The area was named after this very rule, so a "# Area" heading
+		// followed by a "## Title" entry would say the same thing twice. The
+		// file heading is the title; the note is the whole body.
+		rule.Body = "# " + req.Title + "\n\n" + req.Note + "\n"
+	default:
 		rule.Body = "# " + headline(target) + "\n"
 	}
 
@@ -61,7 +67,9 @@ func Add(s Scope, req AddRequest, out io.Writer) error {
 	rule.Paths = mergeUnique(rule.Paths, req.Paths)
 	rule.Commands = mergeUnique(rule.Commands, req.Commands)
 	rule.Triggers = mergeUnique(rule.Triggers, req.Triggers)
-	rule.Body = strings.TrimRight(rule.Body, "\n") + "\n\n## " + req.Title + "\n" + req.Note + "\n"
+	if existing != nil || area != slugify(req.Title) {
+		rule.Body = strings.TrimRight(rule.Body, "\n") + "\n\n## " + req.Title + "\n" + req.Note + "\n"
+	}
 
 	if err := os.WriteFile(rule.Path, []byte(RenderRuleFile(rule)), 0o644); err != nil {
 		return err

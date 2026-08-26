@@ -98,3 +98,29 @@ func TestRenderBlockNoAlwaysSectionWhenNone(t *testing.T) {
 		t.Errorf("no always-rules means no Always section:\n%s", got)
 	}
 }
+
+func TestDemoteHeadings(t *testing.T) {
+	got := demoteHeadings("# One\n\ntext\n\n## Two\n\n###### Deep\n", 3)
+	want := "#### One\n\ntext\n\n##### Two\n\n###### Deep\n"
+	if got != want {
+		t.Errorf("demoteHeadings =\n%q\nwant\n%q", got, want)
+	}
+}
+
+func TestDemoteHeadingsIgnoresNonHeadings(t *testing.T) {
+	in := "text with # hash mid-line\n\n```\n# a comment in code\n```\n"
+	if got := demoteHeadings(in, 3); !strings.Contains(got, "text with # hash mid-line") {
+		t.Errorf("mid-line hash should be untouched: %q", got)
+	}
+}
+
+func TestRenderBlockDemotesInlinedAlwaysRule(t *testing.T) {
+	s := ResolveScope(false, "/work/app", "/home/u")
+	got := RenderBlock(s, sampleRules())
+	if strings.Contains(got, "\n# Secrets") {
+		t.Errorf("inlined body must not drop an H1 into the host document:\n%s", got)
+	}
+	if !strings.Contains(got, "#### Secrets") {
+		t.Errorf("inlined H1 should be demoted to H4:\n%s", got)
+	}
+}

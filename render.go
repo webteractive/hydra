@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -23,9 +24,9 @@ func RenderIndex(s Scope, rules []Rule) string {
 }
 
 // RenderBlock produces the managed block, sentinels included. Always-rules are
-// inlined verbatim; everything else is one table row. Inlining the table (rather
-// than pointing at index.md, as Laravel Boost does) means deciding which rules
-// apply costs the agent no file reads at all.
+// inlined with their headings demoted to fit the host document; everything else
+// is one table row. Inlining the table (rather than pointing at index.md, as
+// Laravel Boost does) means deciding which rules apply costs no file reads.
 func RenderBlock(s Scope, rules []Rule) string {
 	var always, indexed []Rule
 	for _, r := range rules {
@@ -57,7 +58,7 @@ func RenderBlock(s Scope, rules []Rule) string {
 		b.WriteString("\n### Always applies\n")
 		for _, r := range always {
 			b.WriteString("\n")
-			b.WriteString(strings.TrimRight(r.Body, "\n"))
+			b.WriteString(strings.TrimRight(demoteHeadings(r.Body, 3), "\n"))
 			b.WriteString("\n")
 		}
 	}
@@ -66,6 +67,23 @@ func RenderBlock(s Scope, rules []Rule) string {
 	b.WriteString(indexTable(s, indexed))
 	b.WriteString(blockEnd + "\n")
 	return b.String()
+}
+
+// headingRe matches an ATX heading at the start of a line, capturing its hashes.
+var headingRe = regexp.MustCompile(`(?m)^(#{1,6})(\s)`)
+
+// demoteHeadings pushes every heading in body down by n levels. An always-rule's
+// body is written as a standalone document starting at H1, but it gets inlined
+// underneath "### Always applies" — left alone it would drop an <h1> into the
+// middle of the host file. Headings that would exceed H6 are clamped there.
+func demoteHeadings(body string, n int) string {
+	return headingRe.ReplaceAllStringFunc(body, func(m string) string {
+		hashes := strings.Count(m, "#") + n
+		if hashes > 6 {
+			hashes = 6
+		}
+		return strings.Repeat("#", hashes) + m[strings.Count(m, "#"):]
+	})
 }
 
 // indexTable renders the matcher table. Always-rules are never listed: their
