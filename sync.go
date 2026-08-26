@@ -5,82 +5,44 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
+// Sync reparses the library and rewrites both generated artifacts: index.md and
+// the managed block in every detected instruction file. It deliberately does not
+// create the library — that is init's job, so a typo'd directory is reported
+// rather than silently scaffolded.
 func Sync(s Scope, out io.Writer) error {
-	skillsDir := filepath.Join(s.Home, "skills")
-	if !isDir(skillsDir) {
-		return fmt.Errorf("no skills at %s — run 'hydra init' first", skillsDir)
+	if !isDir(s.RulesDir) {
+		return fmt.Errorf("no rules library at %s — run 'hydra init' first", s.RulesDir)
 	}
-	targets := s.RuntimeTargets(runtimes(s))
+
+	rules, err := LoadRules(s.RulesDir)
+	if err != nil {
+		return err
+	}
+
+	for _, r := range rules {
+		if !r.HasMatcher() {
+			fmt.Fprintf(out, "warning: %s has no paths, commands, or triggers and is not always:true — it can never fire\n", r.Name)
+		}
+	}
+
+	indexPath := filepath.Join(s.RulesDir, indexFilename)
+	if err := os.WriteFile(indexPath, []byte(RenderIndex(s, rules)), 0o644); err != nil {
+		return err
+	}
+
+	targets := DetectTargets(s)
+	if len(targets) == 0 {
+		fmt.Fprintf(out, "warning: no agent instruction files found for the %s scope — run 'hydra init' to create them\n", s.Label)
+	}
+	block := RenderBlock(s, rules)
 	for _, t := range targets {
-		if err := os.MkdirAll(t, 0o755); err != nil {
+		if err := SpliceBlock(t, block); err != nil {
 			return err
 		}
 	}
 
-	entries, err := os.ReadDir(skillsDir)
-	if err != nil {
-		return err
-	}
-	count, linked := 0, 0
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		name := e.Name()
-		count++
-		want := relSkills + "/" + name
-		for _, t := range targets {
-			link := filepath.Join(t, name)
-			fi, err := os.Lstat(link)
-			switch {
-			case err == nil && fi.Mode()&os.ModeSymlink != 0:
-				cur, _ := os.Readlink(link)
-				switch {
-				case cur == want:
-					// already correct
-				case strings.HasPrefix(cur, relSkills+"/"):
-					os.Remove(link)
-					if err := os.Symlink(want, link); err != nil {
-						return err
-					}
-					linked++
-				default:
-					fmt.Fprintf(out, "collision: %s already points elsewhere (%s) — skipping\n", link, cur)
-				}
-			case err == nil:
-				fmt.Fprintf(out, "collision: %s is a real file (not a symlink) — skipping\n", link)
-			default:
-				if err := os.Symlink(want, link); err != nil {
-					return err
-				}
-				linked++
-			}
-		}
-	}
-
-	for _, t := range targets {
-		entries, err := os.ReadDir(t)
-		if err != nil {
-			continue
-		}
-		for _, e := range entries {
-			link := filepath.Join(t, e.Name())
-			fi, err := os.Lstat(link)
-			if err != nil || fi.Mode()&os.ModeSymlink == 0 {
-				continue
-			}
-			if _, err := os.Stat(link); err != nil { // dangling
-				if cur, e := os.Readlink(link); e == nil && strings.HasPrefix(cur, relSkills+"/") {
-					fmt.Fprintf(out, "prune (dangling): %s\n", link)
-					os.Remove(link)
-				}
-			}
-		}
-	}
-
-	fmt.Fprintf(out, "synced %d skill(s); %d link(s) (re)created across %d target(s)\n", count, linked, len(targets))
+	fmt.Fprintf(out, "indexed %d rule(s) → %d target(s)\n", len(rules), len(targets))
 	return nil
 }

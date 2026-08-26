@@ -2,96 +2,126 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
-func TestInit(t *testing.T) {
+func TestInitFreshProject(t *testing.T) {
 	tmp := t.TempDir()
-	home := filepath.Join(tmp, "home")
-	s := ResolveScope(false, tmp, home)
+	s := ResolveScope(false, tmp, filepath.Join(tmp, "home"))
 
 	var out bytes.Buffer
 	if err := Init(s, &out); err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range []string{
-		filepath.Join(tmp, ".hydra", "skills", "skill-curator", "SKILL.md"),
-		filepath.Join(tmp, ".hydra", "curator-reminder.sh"),
-		filepath.Join(tmp, ".hydra", "config"),
-		filepath.Join(tmp, ".hydra", "curator.log"),
-	} {
+	if !isDir(filepath.Join(tmp, ".hydra", "rules")) {
+		t.Error("rules dir not created")
+	}
+	if !exists(filepath.Join(tmp, ".hydra", "rules", "index.md")) {
+		t.Error("index.md not created")
+	}
+	for _, target := range []string{"CLAUDE.md", "AGENTS.md"} {
+		p := filepath.Join(tmp, target)
 		if !exists(p) {
-			t.Errorf("missing %s", p)
+			t.Fatalf("%s not created", target)
+		}
+		if !strings.Contains(readFile(t, p), blockStart) {
+			t.Errorf("%s missing the block", target)
 		}
 	}
-	if fi, _ := os.Stat(filepath.Join(tmp, ".hydra", "curator-reminder.sh")); fi == nil || fi.Mode()&0o100 == 0 {
-		t.Error("hook not executable")
-	}
-	if !resolves(filepath.Join(tmp, ".claude", "skills", "skill-curator")) {
-		t.Error("skill-curator not symlinked")
-	}
-	if !fileContains(filepath.Join(tmp, "CLAUDE.md"), "hydra:curator:start") {
-		t.Error("CLAUDE.md missing block")
-	}
-	if !fileContains(filepath.Join(tmp, "AGENTS.md"), "hydra:curator:start") {
-		t.Error("AGENTS.md missing block")
-	}
-	if !fileContains(filepath.Join(tmp, ".claude", "settings.json"), "curator-reminder.sh") {
-		t.Error("settings.json not wired")
-	}
-
-	// idempotent: re-run, no dup block / hook
-	if err := Init(s, &out); err != nil {
-		t.Fatal(err)
-	}
-	md, _ := os.ReadFile(filepath.Join(tmp, "CLAUDE.md"))
-	if n := strings.Count(string(md), "hydra:curator:start"); n != 1 {
-		t.Errorf("curator block count = %d", n)
-	}
-	settings, _ := os.ReadFile(filepath.Join(tmp, ".claude", "settings.json"))
-	if n := strings.Count(string(settings), "curator-reminder.sh"); n != 1 {
-		t.Errorf("hook count = %d", n)
-	}
 }
 
-func TestInitMergesExistingSettings(t *testing.T) {
+func TestInitUsesExistingTargetsOnly(t *testing.T) {
 	tmp := t.TempDir()
-	mustWrite(t, filepath.Join(tmp, ".claude", "settings.json"), `{"permissions":{"allow":["Bash"]}}`)
+	mustWrite(t, filepath.Join(tmp, "AGENTS.md"), "# App\n")
 	s := ResolveScope(false, tmp, filepath.Join(tmp, "home"))
+
 	var out bytes.Buffer
 	if err := Init(s, &out); err != nil {
 		t.Fatal(err)
 	}
-	var data map[string]any
-	b, _ := os.ReadFile(filepath.Join(tmp, ".claude", "settings.json"))
-	if err := json.Unmarshal(b, &data); err != nil {
-		t.Fatalf("settings.json not valid JSON after merge: %v", err)
+	if exists(filepath.Join(tmp, "CLAUDE.md")) {
+		t.Error("init created CLAUDE.md even though AGENTS.md was detected")
 	}
-	if _, ok := data["permissions"]; !ok {
-		t.Error("permissions clobbered")
-	}
-	if _, ok := data["hooks"]; !ok {
-		t.Error("hooks not added")
+	if !strings.Contains(readFile(t, filepath.Join(tmp, "AGENTS.md")), blockStart) {
+		t.Error("AGENTS.md missing the block")
 	}
 }
 
-func TestInitInvalidSettingsDoesNotAbort(t *testing.T) {
+func TestInitIdempotent(t *testing.T) {
 	tmp := t.TempDir()
-	mustWrite(t, filepath.Join(tmp, ".claude", "settings.json"), `{not valid json`)
 	s := ResolveScope(false, tmp, filepath.Join(tmp, "home"))
+
+	var out bytes.Buffer
+	for i := 0; i < 3; i++ {
+		if err := Init(s, &out); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := readFile(t, filepath.Join(tmp, "CLAUDE.md"))
+	if n := strings.Count(got, blockStart); n != 1 {
+		t.Errorf("block count = %d want 1", n)
+	}
+}
+
+func TestInitPreservesExistingRules(t *testing.T) {
+	tmp := t.TempDir()
+	rule := filepath.Join(tmp, ".hydra", "rules", "keep.md")
+	mustWrite(t, rule, "---\npaths: [\"a/**\"]\n---\n\n# Keep\n")
+	s := ResolveScope(false, tmp, filepath.Join(tmp, "home"))
+
 	var out bytes.Buffer
 	if err := Init(s, &out); err != nil {
-		t.Fatalf("init aborted on invalid settings.json: %v", err)
+		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "not valid JSON") {
-		t.Errorf("expected manual-merge notice, got: %s", out.String())
+	if !strings.Contains(readFile(t, rule), "# Keep") {
+		t.Error("existing rule was clobbered")
 	}
-	// the rest of init still happened
-	if !exists(filepath.Join(tmp, ".hydra", "skills", "skill-curator", "SKILL.md")) {
-		t.Error("init did not complete after invalid settings.json")
+}
+
+func TestInitRunsTeardown(t *testing.T) {
+	tmp := t.TempDir()
+	mustWrite(t, filepath.Join(tmp, ".hydra", "curator-reminder.sh"), "#!/bin/sh\n")
+	mustWrite(t, filepath.Join(tmp, "CLAUDE.md"),
+		"# App\n\n<!-- hydra:curator:start -->\ncurator\n<!-- hydra:curator:end -->\n")
+	s := ResolveScope(false, tmp, filepath.Join(tmp, "home"))
+
+	var out bytes.Buffer
+	if err := Init(s, &out); err != nil {
+		t.Fatal(err)
+	}
+	if exists(filepath.Join(tmp, ".hydra", "curator-reminder.sh")) {
+		t.Error("hook script survived init")
+	}
+	got := readFile(t, filepath.Join(tmp, "CLAUDE.md"))
+	if strings.Contains(got, "hydra:curator") {
+		t.Error("curator block survived init")
+	}
+	if !strings.Contains(got, blockStart) {
+		t.Error("rules block not written")
+	}
+}
+
+func TestInitGlobalScope(t *testing.T) {
+	tmp := t.TempDir()
+	home := filepath.Join(tmp, "home")
+	if err := os.MkdirAll(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	s := ResolveScope(true, tmp, home)
+
+	var out bytes.Buffer
+	if err := Init(s, &out); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(home, ".claude", "CLAUDE.md")
+	if !exists(target) {
+		t.Fatal("global CLAUDE.md not created")
+	}
+	got := readFile(t, target)
+	if !strings.Contains(got, filepath.Join(home, ".hydra", "rules")) {
+		t.Errorf("global block should reference an absolute rules dir: %s", got)
 	}
 }

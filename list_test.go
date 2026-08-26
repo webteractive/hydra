@@ -2,131 +2,62 @@ package main
 
 import (
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
-func writeSkill(t *testing.T, home, name, desc string) {
-	t.Helper()
-	dir := filepath.Join(home, "skills", name)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	body := "---\nname: " + name + "\ndescription: " + desc + "\n---\n\nbody\n"
-	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(body), 0o644); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestListSortedWithFrontmatter(t *testing.T) {
+func TestListReturnsRules(t *testing.T) {
 	tmp := t.TempDir()
-	s := ResolveScope(false, tmp, tmp)
+	mustWrite(t, filepath.Join(tmp, ".hydra", "rules", "secrets.md"),
+		"---\nalways: true\n---\n\n# Secrets\n\nNever read.\n")
+	mustWrite(t, filepath.Join(tmp, ".hydra", "rules", "rust.md"),
+		"---\npaths: [\"**/Cargo.toml\"]\ncommands: [\"cargo add\"]\n---\n\n# Rust\n")
 
-	// beta written first to confirm sorting, alpha has a colon in description.
-	writeSkill(t, s.Home, "beta", "second skill")
-	writeSkill(t, s.Home, "alpha", "first skill: with a colon")
-
-	skills, err := List(s)
+	got, err := List(ResolveScope(false, tmp, filepath.Join(tmp, "home")))
 	if err != nil {
-		t.Fatalf("List error: %v", err)
-	}
-	if len(skills) != 2 {
-		t.Fatalf("want 2 skills, got %d: %+v", len(skills), skills)
-	}
-	if skills[0].Name != "alpha" || skills[1].Name != "beta" {
-		t.Fatalf("not sorted by name: %+v", skills)
-	}
-	if skills[0].Description != "first skill: with a colon" {
-		t.Errorf("colon description mangled: %q", skills[0].Description)
-	}
-	if skills[1].Description != "second skill" {
-		t.Errorf("beta description wrong: %q", skills[1].Description)
-	}
-	wantPath := filepath.Join(s.Home, "skills", "alpha", "SKILL.md")
-	if skills[0].Path != wantPath {
-		t.Errorf("path: want %q got %q", wantPath, skills[0].Path)
-	}
-}
-
-func TestListFallbackNoFrontmatter(t *testing.T) {
-	tmp := t.TempDir()
-	s := ResolveScope(false, tmp, tmp)
-	dir := filepath.Join(s.Home, "skills", "naked")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("no frontmatter here\n"), 0o644); err != nil {
-		t.Fatal(err)
+	if len(got) != 2 {
+		t.Fatalf("len = %d want 2", len(got))
 	}
-
-	skills, err := List(s)
-	if err != nil {
-		t.Fatalf("List error: %v", err)
+	if got[0].Name != "rust" || got[1].Name != "secrets" {
+		t.Errorf("order = %s, %s", got[0].Name, got[1].Name)
 	}
-	if len(skills) != 1 || skills[0].Name != "naked" || skills[0].Description != "" {
-		t.Fatalf("fallback wrong: %+v", skills)
+	if !got[1].Always {
+		t.Error("secrets should be always")
+	}
+	if got[0].Path != ".hydra/rules/rust.md" {
+		t.Errorf("Path = %s want a scope-relative ref", got[0].Path)
 	}
 }
 
 func TestListUninitialized(t *testing.T) {
 	tmp := t.TempDir()
-	s := ResolveScope(false, tmp, tmp)
-	skills, err := List(s)
+	got, err := List(ResolveScope(false, tmp, filepath.Join(tmp, "home")))
 	if err != nil {
-		t.Fatalf("uninitialized should not error: %v", err)
+		t.Fatalf("uninitialized scope should not error: %v", err)
 	}
-	if len(skills) != 0 {
-		t.Fatalf("want empty, got %+v", skills)
+	if len(got) != 0 {
+		t.Errorf("len = %d want 0", len(got))
 	}
 }
 
-func TestRunListJSON(t *testing.T) {
+func TestListJSONShape(t *testing.T) {
 	tmp := t.TempDir()
-	t.Chdir(tmp)
-	t.Setenv("HOME", filepath.Join(tmp, "home"))
-
-	if _, err := runCLI(t, "init"); err != nil {
+	mustWrite(t, filepath.Join(tmp, ".hydra", "rules", "rust.md"),
+		"---\npaths: [\"**/Cargo.toml\"]\n---\n\n# Rust\n")
+	got, err := List(ResolveScope(false, tmp, filepath.Join(tmp, "home")))
+	if err != nil {
 		t.Fatal(err)
 	}
-	writeSkill(t, filepath.Join(tmp, ".hydra"), "zeta", "a zeta skill")
-
-	out, err := runCLI(t, "list", "--json")
+	b, err := json.Marshal(got)
 	if err != nil {
-		t.Fatalf("list --json: %v", err)
+		t.Fatal(err)
 	}
-	var got []SkillInfo
-	if err := json.Unmarshal([]byte(out), &got); err != nil {
-		t.Fatalf("invalid JSON: %v\n%s", err, out)
-	}
-	names := map[string]bool{}
-	for _, sk := range got {
-		names[sk.Name] = true
-	}
-	if !names["zeta"] || !names["skill-curator"] {
-		t.Errorf("missing expected skills in JSON: %v", names)
-	}
-
-	textOut, err := runCLI(t, "list")
-	if err != nil {
-		t.Fatalf("list text: %v", err)
-	}
-	if !strings.Contains(textOut, "zeta") || !strings.Contains(textOut, "skill-curator") {
-		t.Errorf("text output missing skills:\n%s", textOut)
-	}
-}
-
-func TestRunListJSONEmpty(t *testing.T) {
-	tmp := t.TempDir()
-	t.Chdir(tmp)
-	t.Setenv("HOME", filepath.Join(tmp, "home"))
-
-	out, err := runCLI(t, "list", "--json")
-	if err != nil {
-		t.Fatalf("list --json empty: %v", err)
-	}
-	if strings.TrimSpace(out) != "[]" {
-		t.Errorf("empty library should print []: %q", out)
+	for _, want := range []string{`"name":"rust"`, `"always":false`, `"paths":["**/Cargo.toml"]`} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("JSON missing %s: %s", want, b)
+		}
 	}
 }

@@ -1,8 +1,8 @@
 # hydra
 
-A CLI for managing a library of reusable skills for AI coding agents (Claude Code and
-others). It sets up a small curator workflow in a project: before real work, the agent
-checks the library and captures a new skill when a problem is worth reusing.
+A CLI for managing a library of scoped rules for AI coding agents (Claude Code and
+others). Rules are committed Markdown; hydra keeps an index of them in your agent
+instruction files so an agent reads only the ones that apply to what it's doing.
 
 ## Install
 
@@ -17,36 +17,49 @@ it to `~/.local/bin`.
 
 ```bash
 cd your-project
-hydra init      # scaffold .hydra/, wire the hook, seed the skill-curator skill
-hydra doctor    # check the install
+hydra init      # scaffold .hydra/rules/ and wire the block into CLAUDE.md / AGENTS.md
+hydra add --glob 'app/Http/Controllers/**' \
+          --title 'Extend BaseController' \
+          --note  'Every controller extends BaseController for tenant scoping.'
+hydra doctor
 ```
 
-Run `hydra init --global` to set it up once for every project (library in `~/.hydra/`, wired
-into `~/.claude` and `~/.agents`).
+Run any command with `--global` to operate on `~/.hydra/rules/` instead, wired into
+`~/.claude/CLAUDE.md`. The two libraries are independent — the agent loads both.
 
 ## Commands
 
 | Command | Description |
 |---|---|
-| `hydra init [--global]` | Set up the curator in a project, or globally. |
-| `hydra sync [--global]` | Rebuild skill symlinks from `.hydra/skills/`. |
-| `hydra new <name>` | Create a new skill and sync it. |
-| `hydra log <CREATE\|UPDATE\|RENAME> <skill> <reason>` | Record a change in `.hydra/curator.log`. |
-| `hydra doctor [--global]` | Check that everything is wired up. |
+| `hydra init [--global]` | Scaffold the library and wire it into your agent files. |
+| `hydra sync [--global]` | Reindex and rewrite every managed block. |
+| `hydra add …` | Record a rule. Initializes the library if it doesn't exist. |
+| `hydra new <name>` | Scaffold a blank rule for hand-editing. |
+| `hydra list [--json]` | List rules with their matchers. |
+| `hydra doctor [--json]` | Check that everything is wired up. |
 | `hydra self-update` | Update to the latest release. |
 
 ## How it works
 
-`hydra init` scaffolds a `.hydra/` directory and seeds one skill, `skill-curator`, which
-runs on each prompt through a `UserPromptSubmit` hook:
+A rule is one Markdown file with frontmatter declaring when it fires:
 
-```
-scan → decide → build | update | use | inline → sync → log
+```markdown
+---
+paths:    ["**/Cargo.toml"]
+commands: ["cargo add"]
+triggers: ["auditing a Rust dependency"]
+---
+
+# Rust dependencies
+
+## Pin the exact version
+...
 ```
 
-Skills live in `.hydra/skills/<name>/SKILL.md` and are symlinked into the agent runtimes
-(`.claude/skills`, `.agents/skills`) by `hydra sync`. Build a skill when the problem is
-likely to recur; otherwise handle it inline and create nothing.
+`hydra sync` renders every rule into an index table and splices it into your agent
+instruction files between `<!-- hydra:rules:start -->` sentinels. The agent reads the
+table on every prompt and opens only the rule files whose matchers hit. Rules marked
+`always: true` are inlined into the block instead of indexed.
 
 ## Development
 
@@ -55,5 +68,3 @@ go test ./...
 go vet ./...
 go build -o hydra .
 ```
-
-The source is the `*.go` files plus `assets/`, embedded with `//go:embed`.

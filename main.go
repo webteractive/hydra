@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -31,19 +29,11 @@ func run(args []string, out, errw io.Writer) error {
 	return root.Execute()
 }
 
-// scopeFromCmd resolves the active Scope honoring the persistent --global flag.
-func scopeFromCmd(cmd *cobra.Command) Scope {
-	global, _ := cmd.Flags().GetBool("global")
-	cwd, _ := os.Getwd()
-	home, _ := os.UserHomeDir()
-	return ResolveScope(global, cwd, home)
-}
-
 func newRootCmd(out, errw io.Writer) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "hydra",
-		Short: "hydra — skill library manager for AI coding agents",
-		Long:  fmt.Sprintf("hydra %s — manage a library of reusable skills for AI coding agents (Claude Code and others).", version()),
+		Short: "hydra — rules library manager for AI coding agents",
+		Long:  fmt.Sprintf("hydra %s — manage a library of scoped rules for AI coding agents (Claude Code and others).", version()),
 		// Subcommands handle their own error reporting; don't let cobra dump
 		// usage text or re-print returned errors (main handles that).
 		SilenceUsage:  true,
@@ -53,7 +43,7 @@ func newRootCmd(out, errw io.Writer) *cobra.Command {
 
 	root.AddCommand(&cobra.Command{
 		Use:   "init",
-		Short: "scaffold the curator into a project (or globally)",
+		Short: "scaffold the rules library and wire it into your agent files",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return Init(scopeFromCmd(cmd), out)
@@ -62,34 +52,80 @@ func newRootCmd(out, errw io.Writer) *cobra.Command {
 
 	root.AddCommand(&cobra.Command{
 		Use:   "sync",
-		Short: "rebuild skill symlinks from .hydra/skills/",
+		Short: "reindex the library and rewrite every managed block",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return Sync(scopeFromCmd(cmd), out)
 		},
 	})
 
+	root.AddCommand(newAddCmd(out))
+
 	root.AddCommand(&cobra.Command{
 		Use:   "new <name>",
-		Short: "create a new skill scaffold",
+		Short: "scaffold a blank rule for hand-editing",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return New(scopeFromCmd(cmd), args[0], out)
 		},
 	})
 
+	root.AddCommand(newListCmd(out))
+	root.AddCommand(newDoctorCmd(out))
+
 	root.AddCommand(&cobra.Command{
-		Use:   "log <CREATE|UPDATE|RENAME> <skill> <reason>",
-		Short: "append an entry to the curator log",
-		Args:  cobra.MinimumNArgs(3),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return Log(scopeFromCmd(cmd), args[0], args[1], strings.Join(args[2:], " "), out, time.Now().Format("2006-01-02"))
+		Use:   "version",
+		Short: "print the hydra version",
+		Args:  cobra.NoArgs,
+		Run: func(cmd *cobra.Command, _ []string) {
+			fmt.Fprintf(out, "hydra %s\n", version())
 		},
 	})
 
-	doctorCmd := &cobra.Command{
+	root.AddCommand(newSelfUpdateCmd(out))
+
+	return root
+}
+
+func newAddCmd(out io.Writer) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "add",
+		Short: "record a rule",
+		Long: "Record a durable rule so the next agent or teammate inherits it.\n\n" +
+			"Give it at least one matcher (--glob, --command, --trigger) or --always,\n" +
+			"plus a short --title and a few-line --note. Initializes the library if\n" +
+			"it does not exist yet.",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			title, _ := cmd.Flags().GetString("title")
+			note, _ := cmd.Flags().GetString("note")
+			always, _ := cmd.Flags().GetBool("always")
+			globs, _ := cmd.Flags().GetStringArray("glob")
+			commands, _ := cmd.Flags().GetStringArray("command")
+			triggers, _ := cmd.Flags().GetStringArray("trigger")
+			return Add(scopeFromCmd(cmd), AddRequest{
+				Title:    title,
+				Note:     note,
+				Always:   always,
+				Paths:    globs,
+				Commands: commands,
+				Triggers: triggers,
+			}, out)
+		},
+	}
+	cmd.Flags().String("title", "", "short, specific heading for the rule (required)")
+	cmd.Flags().String("note", "", "the rule stated plainly, a few lines (required)")
+	cmd.Flags().Bool("always", false, "inline this rule into the block instead of indexing it")
+	cmd.Flags().StringArray("glob", nil, "file glob the rule applies to (repeatable)")
+	cmd.Flags().StringArray("command", nil, "command prefix the rule applies to (repeatable)")
+	cmd.Flags().StringArray("trigger", nil, "situation the rule applies to, in prose (repeatable)")
+	return cmd
+}
+
+func newDoctorCmd(out io.Writer) *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "doctor",
-		Short: "verify install health",
+		Short: "verify the library and its wiring",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			rep := Doctor(scopeFromCmd(cmd))
@@ -110,21 +146,6 @@ func newRootCmd(out, errw io.Writer) *cobra.Command {
 			return nil
 		},
 	}
-	doctorCmd.Flags().Bool("json", false, "output as JSON")
-	root.AddCommand(doctorCmd)
-
-	root.AddCommand(newListCmd(out))
-
-	root.AddCommand(&cobra.Command{
-		Use:   "version",
-		Short: "print the hydra version",
-		Args:  cobra.NoArgs,
-		Run: func(cmd *cobra.Command, _ []string) {
-			fmt.Fprintf(out, "hydra %s\n", version())
-		},
-	})
-
-	root.AddCommand(newSelfUpdateCmd(out))
-
-	return root
+	cmd.Flags().Bool("json", false, "output as JSON")
+	return cmd
 }

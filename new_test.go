@@ -3,38 +3,46 @@ package main
 import (
 	"bytes"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
-func TestNew(t *testing.T) {
+func TestNewScaffoldsRule(t *testing.T) {
+	tmp := t.TempDir()
+	s := ResolveScope(false, tmp, filepath.Join(tmp, "home"))
+
+	var out bytes.Buffer
+	if err := New(s, "rust-dependencies", &out); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(tmp, ".hydra", "rules", "rust-dependencies.md")
+	got := readFile(t, path)
+	for _, want := range []string{"paths:", "commands:", "triggers:", "# Rust Dependencies"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("scaffold missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestNewRejectsBadNames(t *testing.T) {
 	tmp := t.TempDir()
 	s := ResolveScope(false, tmp, filepath.Join(tmp, "home"))
 	var out bytes.Buffer
-	if err := Init(s, &out); err != nil {
+	for _, name := range []string{"", "Not Kebab", "UPPER", "trailing-"} {
+		if err := New(s, name, &out); err == nil {
+			t.Errorf("expected an error for %q", name)
+		}
+	}
+}
+
+func TestNewRefusesToClobber(t *testing.T) {
+	tmp := t.TempDir()
+	s := ResolveScope(false, tmp, filepath.Join(tmp, "home"))
+	var out bytes.Buffer
+	if err := New(s, "dupe", &out); err != nil {
 		t.Fatal(err)
 	}
-
-	if err := New(s, "my-skill", &out); err != nil {
-		t.Fatal(err)
-	}
-	skill := filepath.Join(tmp, ".hydra", "skills", "my-skill", "SKILL.md")
-	if !fileContains(skill, "name: my-skill") || !fileContains(skill, "description:") {
-		t.Error("scaffold missing frontmatter")
-	}
-	if !resolves(filepath.Join(tmp, ".claude", "skills", "my-skill")) {
-		t.Error("new skill not synced")
-	}
-
-	if err := New(s, "BadName", &out); err == nil {
-		t.Error("expected error for non-kebab name")
-	}
-	if err := New(s, "has space", &out); err == nil {
-		t.Error("expected error for spaced name")
-	}
-	if err := New(s, "my-skill", &out); err == nil {
-		t.Error("expected error for existing skill")
-	}
-	if err := New(s, "", &out); err == nil {
-		t.Error("expected error for empty name")
+	if err := New(s, "dupe", &out); err == nil {
+		t.Error("expected an error for an existing rule")
 	}
 }

@@ -1,29 +1,20 @@
 package main
 
-import (
-	"path/filepath"
-	"reflect"
-	"sort"
-	"testing"
-)
+import "testing"
 
 func TestResolveScopeProject(t *testing.T) {
 	s := ResolveScope(false, "/work/app", "/home/u")
 	if s.Home != "/work/app/.hydra" {
 		t.Errorf("Home = %s", s.Home)
 	}
-	if s.Settings != "/work/app/.claude/settings.json" {
-		t.Errorf("Settings = %s", s.Settings)
-	}
-	want := []string{"/work/app/CLAUDE.md", "/work/app/AGENTS.md"}
-	if !reflect.DeepEqual(s.ClaudeMDs, want) {
-		t.Errorf("ClaudeMDs = %v", s.ClaudeMDs)
-	}
-	if s.HookCmd != "$CLAUDE_PROJECT_DIR/.hydra/curator-reminder.sh" {
-		t.Errorf("HookCmd = %s", s.HookCmd)
+	if s.RulesDir != "/work/app/.hydra/rules" {
+		t.Errorf("RulesDir = %s", s.RulesDir)
 	}
 	if s.Label != "project" {
 		t.Errorf("Label = %s", s.Label)
+	}
+	if s.Global {
+		t.Error("Global = true for a project scope")
 	}
 }
 
@@ -32,20 +23,32 @@ func TestResolveScopeGlobal(t *testing.T) {
 	if s.Home != "/home/u/.hydra" {
 		t.Errorf("Home = %s", s.Home)
 	}
-	if s.Settings != "/home/u/.claude/settings.json" {
-		t.Errorf("Settings = %s", s.Settings)
+	if s.RulesDir != "/home/u/.hydra/rules" {
+		t.Errorf("RulesDir = %s", s.RulesDir)
 	}
-	if s.HookCmd != "/home/u/.hydra/curator-reminder.sh" {
-		t.Errorf("HookCmd = %s", s.HookCmd) // absolute in global scope
+	if s.Label != "global" {
+		t.Errorf("Label = %s", s.Label)
 	}
 }
 
-func TestRuntimeTargets(t *testing.T) {
+func TestRuleRefRelativeInProject(t *testing.T) {
 	s := ResolveScope(false, "/work/app", "/home/u")
-	got := s.RuntimeTargets([]string{"claude", "agents"})
-	sort.Strings(got)
-	want := []string{filepath.Join("/work/app/.agents", "skills"), filepath.Join("/work/app/.claude", "skills")}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("targets = %v want %v", got, want)
+	r := Rule{Name: "rust", Path: "/work/app/.hydra/rules/rust.md"}
+	if got := s.RuleRef(r); got != ".hydra/rules/rust.md" {
+		t.Errorf("RuleRef = %s want .hydra/rules/rust.md", got)
+	}
+	if got := s.RulesDirRef(); got != ".hydra/rules" {
+		t.Errorf("RulesDirRef = %s want .hydra/rules", got)
+	}
+}
+
+func TestRuleRefAbsoluteInGlobal(t *testing.T) {
+	s := ResolveScope(true, "/work/app", "/home/u")
+	r := Rule{Name: "rust", Path: "/home/u/.hydra/rules/rust.md"}
+	if got := s.RuleRef(r); got != "/home/u/.hydra/rules/rust.md" {
+		t.Errorf("RuleRef = %s", got)
+	}
+	if got := s.RulesDirRef(); got != "/home/u/.hydra/rules" {
+		t.Errorf("RulesDirRef = %s", got)
 	}
 }
