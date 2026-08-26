@@ -46,7 +46,11 @@ func newRootCmd(out, errw io.Writer) *cobra.Command {
 		Short: "scaffold the rules library and wire it into your agent files",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return Init(scopeFromCmd(cmd), out)
+			s, err := scopeFromCmd(cmd)
+			if err != nil {
+				return err
+			}
+			return Init(s, out)
 		},
 	})
 
@@ -55,7 +59,11 @@ func newRootCmd(out, errw io.Writer) *cobra.Command {
 		Short: "reindex the library and rewrite every managed block",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return Sync(scopeFromCmd(cmd), out)
+			s, err := scopeFromCmd(cmd)
+			if err != nil {
+				return err
+			}
+			return Sync(s, out)
 		},
 	})
 
@@ -66,7 +74,11 @@ func newRootCmd(out, errw io.Writer) *cobra.Command {
 		Short: "scaffold a blank rule for hand-editing",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return New(scopeFromCmd(cmd), args[0], out)
+			s, err := scopeFromCmd(cmd)
+			if err != nil {
+				return err
+			}
+			return New(s, args[0], out)
 		},
 	})
 
@@ -103,7 +115,11 @@ func newAddCmd(out io.Writer) *cobra.Command {
 			globs, _ := cmd.Flags().GetStringArray("glob")
 			commands, _ := cmd.Flags().GetStringArray("command")
 			triggers, _ := cmd.Flags().GetStringArray("trigger")
-			return Add(scopeFromCmd(cmd), AddRequest{
+			s, err := scopeFromCmd(cmd)
+			if err != nil {
+				return err
+			}
+			return Add(s, AddRequest{
 				Title:    title,
 				Note:     note,
 				Always:   always,
@@ -128,7 +144,11 @@ func newDoctorCmd(out io.Writer) *cobra.Command {
 		Short: "verify the library and its wiring",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			rep := Doctor(scopeFromCmd(cmd))
+			s, err := scopeFromCmd(cmd)
+			if err != nil {
+				return err
+			}
+			rep := Doctor(s)
 			if asJSON, _ := cmd.Flags().GetBool("json"); asJSON {
 				b, err := json.MarshalIndent(rep, "", "  ")
 				if err != nil {

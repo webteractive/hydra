@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -61,9 +62,25 @@ func (s Scope) ref(path string) string {
 // scopeFromCmd resolves the active Scope honoring the persistent --global flag.
 // It lives here rather than in main.go so every command file can reach it
 // without depending on the order commands get wired up.
-func scopeFromCmd(cmd *cobra.Command) Scope {
+//
+// The directory lookup is only fatal for the scope that actually needs it, but
+// it must be fatal: filepath.Join("", ".hydra") is ".hydra", so swallowing a
+// failed UserHomeDir would silently point --global at the current repository
+// and scaffold there while reporting that it worked on the global scope.
+func scopeFromCmd(cmd *cobra.Command) (Scope, error) {
 	global, _ := cmd.Flags().GetBool("global")
-	cwd, _ := os.Getwd()
-	home, _ := os.UserHomeDir()
-	return ResolveScope(global, cwd, home)
+
+	if global {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return Scope{}, fmt.Errorf("cannot resolve your home directory for --global (is $HOME set?): %w", err)
+		}
+		return ResolveScope(true, "", home), nil
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return Scope{}, fmt.Errorf("cannot resolve the current directory: %w", err)
+	}
+	return ResolveScope(false, cwd, ""), nil
 }
