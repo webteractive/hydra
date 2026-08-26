@@ -110,7 +110,7 @@ func hasV01Artifacts(s Scope) bool {
 	// A skills directory existing proves nothing — globally it is shared with
 	// skillset, dotfiles, and plugins. Only links into our own library count.
 	for _, dir := range skillFarms(s) {
-		if len(hydraOwnedLinks(dir, ownedSkillDirs(s))) > 0 {
+		if stale, _ := staleLinks(dir, ownedSkillDirs(s)); len(stale) > 0 {
 			return true
 		}
 	}

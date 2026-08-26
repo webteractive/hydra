@@ -14,6 +14,7 @@ const (
 	curatorBlockStart = "<!-- hydra:curator:start -->"
 	curatorBlockEnd   = "<!-- hydra:curator:end -->"
 	curatorHookMarker = "curator-reminder.sh"
+	curatorSkillName  = "skill-curator"
 )
 
 // Teardown removes every v0.1 skill-curator artifact and reports whether it
@@ -122,18 +123,49 @@ func hydraOwnedLinks(dir string, skillsDirs []string) []string {
 	return owned
 }
 
-// removeSymlinkFarm deletes the symlinks hydra created in dir, including
-// dangling ones. Links belonging to other tools and real files are left alone,
-// and the directory itself only goes if it ends up empty.
+// staleLinks narrows hydraOwnedLinks to the ones teardown may actually delete:
+// the curator's own link, and links whose target no longer exists. A link to a
+// skill that still exists is live content — removing it would unexpose a working
+// skill, which is the same kind of destruction as deleting the skill itself.
+func staleLinks(dir string, skillsDirs []string) (stale, live []string) {
+	for _, link := range hydraOwnedLinks(dir, skillsDirs) {
+		if filepath.Base(link) == curatorSkillName || !exists(resolveLink(link)) {
+			stale = append(stale, link)
+			continue
+		}
+		live = append(live, link)
+	}
+	return stale, live
+}
+
+// resolveLink returns a symlink's target as an absolute path, without requiring
+// it to exist.
+func resolveLink(link string) string {
+	target, err := os.Readlink(link)
+	if err != nil {
+		return ""
+	}
+	if !filepath.IsAbs(target) {
+		target = filepath.Join(filepath.Dir(link), target)
+	}
+	return filepath.Clean(target)
+}
+
+// removeSymlinkFarm deletes the curator link and any dangling links hydra left
+// in dir. Links to skills that still exist, links belonging to other tools, and
+// real files are left alone; the directory itself only goes if it ends up empty.
 func removeSymlinkFarm(dir string, skillsDirs []string, out io.Writer) (bool, error) {
-	owned := hydraOwnedLinks(dir, skillsDirs)
+	stale, live := staleLinks(dir, skillsDirs)
 	removed := false
-	for _, link := range owned {
+	for _, link := range stale {
 		if err := os.Remove(link); err != nil {
 			return removed, err
 		}
 		fmt.Fprintf(out, "  removed  %s\n", link)
 		removed = true
+	}
+	for _, link := range live {
+		fmt.Fprintf(out, "  kept     %s (skill still exists)\n", link)
 	}
 	if remaining, err := os.ReadDir(dir); err == nil && len(remaining) == 0 {
 		if err := os.Remove(dir); err != nil {

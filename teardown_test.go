@@ -150,8 +150,8 @@ func TestTeardownOnlyRemovesItsOwnSymlinks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if exists(filepath.Join(farm, "mine")) {
-		t.Error("hydra's own link should have been removed")
+	if !exists(filepath.Join(farm, "mine")) {
+		t.Error("a link to a skill that still exists must survive — removing it unexposes a working skill")
 	}
 	if exists(filepath.Join(farm, "gone")) {
 		t.Error("hydra's dangling link should have been removed")
@@ -190,5 +190,64 @@ func TestDoctorIgnoresForeignSymlinkFarm(t *testing.T) {
 
 	if hasV01Artifacts(s) {
 		t.Error("a skills dir holding only other tools' links is not v0.1 wreckage")
+	}
+}
+
+// The curator's own link always goes, even though its skill still exists — it
+// is the machinery being removed, not content worth keeping exposed.
+func TestTeardownRemovesCuratorLinkButKeepsOtherLiveSkills(t *testing.T) {
+	tmp := t.TempDir()
+	mustWrite(t, filepath.Join(tmp, ".hydra", "skills", "skill-curator", "SKILL.md"), "curator\n")
+	mustWrite(t, filepath.Join(tmp, ".hydra", "skills", "bugsnag-comment", "SKILL.md"), "authored\n")
+
+	farm := filepath.Join(tmp, ".claude", "skills")
+	if err := os.MkdirAll(farm, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"skill-curator", "bugsnag-comment"} {
+		if err := os.Symlink("../../.hydra/skills/"+name, filepath.Join(farm, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	s := ResolveScope(false, tmp, filepath.Join(tmp, "home"))
+	var out bytes.Buffer
+	if _, err := Teardown(s, &out); err != nil {
+		t.Fatal(err)
+	}
+
+	if exists(filepath.Join(farm, "skill-curator")) {
+		t.Error("the curator link must be removed")
+	}
+	if !exists(filepath.Join(farm, "bugsnag-comment")) {
+		t.Error("an authored skill's link must survive")
+	}
+	if !exists(filepath.Join(tmp, ".hydra", "skills", "bugsnag-comment", "SKILL.md")) {
+		t.Error("the authored skill itself must survive")
+	}
+	if !strings.Contains(out.String(), "kept") {
+		t.Errorf("teardown should report what it kept: %s", out.String())
+	}
+}
+
+// Doctor must not nag forever about a farm that only holds live authored links.
+func TestDoctorIgnoresLiveAuthoredLinks(t *testing.T) {
+	tmp := t.TempDir()
+	s := ResolveScope(false, tmp, filepath.Join(tmp, "home"))
+	var out bytes.Buffer
+	if err := Init(s, &out); err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, filepath.Join(tmp, ".hydra", "skills", "bugsnag-comment", "SKILL.md"), "authored\n")
+	farm := filepath.Join(tmp, ".claude", "skills")
+	if err := os.MkdirAll(farm, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("../../.hydra/skills/bugsnag-comment", filepath.Join(farm, "bugsnag-comment")); err != nil {
+		t.Fatal(err)
+	}
+
+	if hasV01Artifacts(s) {
+		t.Error("a live authored skill link is not v0.1 wreckage")
 	}
 }
