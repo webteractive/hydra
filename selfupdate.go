@@ -177,8 +177,12 @@ func newSelfUpdateCmd(out io.Writer) *cobra.Command {
 	return &cobra.Command{
 		Use:     "self-update",
 		Aliases: []string{"selfupdate"},
-		Short:   "update hydra in place to the latest GitHub release",
-		Args:    cobra.NoArgs,
+		Short:   "Update hydra to the latest release",
+		Long: "Replace this binary in place with the latest GitHub release for your platform.\n\n" +
+			"The download is checksum-verified before it replaces the running binary.\n" +
+			"Run `hydra doctor` afterwards: a new release can change the managed blocks,\n" +
+			"which are only rewritten on the next init or sync.",
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			exe, err := os.Executable()
 			if err != nil {

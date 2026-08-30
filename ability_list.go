@@ -4,14 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
 
 type AbilityInfo struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Path        string `json:"path"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Triggers    []string `json:"triggers"`
+	Path        string   `json:"path"`
 }
 
 func AbilityList(s AbilityScope) ([]AbilityInfo, error) {
@@ -24,6 +26,7 @@ func AbilityList(s AbilityScope) ([]AbilityInfo, error) {
 		infos = append(infos, AbilityInfo{
 			Name:        ability.Name,
 			Description: ability.Description,
+			Triggers:    ability.Triggers,
 			Path:        ability.Path,
 		})
 	}
@@ -73,6 +76,9 @@ func renderAbilityListText(out io.Writer, abilities []AbilityInfo) {
 	for _, ability := range abilities {
 		fmt.Fprintf(out, "\n%s\n", ability.Name)
 		fmt.Fprintf(out, "  %s\n", ability.Description)
+		if len(ability.Triggers) > 0 {
+			fmt.Fprintf(out, "  Triggers: %s\n", strings.Join(ability.Triggers, " · "))
+		}
 		fmt.Fprintf(out, "  Invoke: $ability %s\n", ability.Name)
 		fmt.Fprintf(out, "  Source: %s\n", ability.Path)
 	}

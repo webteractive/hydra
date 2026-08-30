@@ -2,9 +2,13 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
+	"io"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 func runCLI(t *testing.T, args ...string) (string, error) {
@@ -156,4 +160,96 @@ func TestRunGlobalFailsWithoutHome(t *testing.T) {
 	if exists(filepath.Join(tmp, ".hydra")) {
 		t.Error("a failed --global must not scaffold into the current directory")
 	}
+}
+
+// A CLI must answer "which build is this?" without a subcommand.
+func TestRootReportsVersionViaFlag(t *testing.T) {
+	for _, flag := range []string{"--version", "-v"} {
+		out, err := runCLI(t, flag)
+		if err != nil {
+			t.Errorf("%s: %v", flag, err)
+		}
+		if !strings.Contains(out, version()) {
+			t.Errorf("%s: output %q should contain %q", flag, out, version())
+		}
+	}
+	// The subcommand must keep working alongside the flag.
+	out, err := runCLI(t, "version")
+	if err != nil || !strings.Contains(out, version()) {
+		t.Errorf("version subcommand: out=%q err=%v", out, err)
+	}
+}
+
+func TestVersionFlagAndSubcommandAgree(t *testing.T) {
+	flagOut, _ := runCLI(t, "--version")
+	subOut, _ := runCLI(t, "version")
+	if strings.TrimSpace(flagOut) != strings.TrimSpace(subOut) {
+		t.Errorf("version surfaces disagree:\n  --version: %q\n  version:   %q", flagOut, subOut)
+	}
+}
+
+// Triggers decide invocation, so a script reading the machine-readable output
+// cannot reason about an ability without them.
+func TestAbilityListJSONExposesTriggers(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	if _, err := runCLI(t, "ability", "init"); err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, filepath.Join(home, ".hydra", "abilities", "shipper", abilityFilename),
+		"---\nname: shipper\ndescription: Ship it.\ntriggers:\n  - ship the thing\n---\n\n# Shipper\n")
+	if _, err := runCLI(t, "ability", "sync"); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := runCLI(t, "ability", "list", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var infos []AbilityInfo
+	if err := json.Unmarshal([]byte(out), &infos); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if len(infos) != 1 || len(infos[0].Triggers) != 1 || infos[0].Triggers[0] != "ship the thing" {
+		t.Errorf("triggers missing from machine-readable output: %+v", infos)
+	}
+
+	if text, err := runCLI(t, "ability", "list"); err != nil || !strings.Contains(text, "ship the thing") {
+		t.Errorf("humans need the triggers too: out=%q err=%v", text, err)
+	}
+}
+
+// The command listing is how anyone learns what a tool does.
+func TestEveryCommandHasHelp(t *testing.T) {
+	var walk func(c *cobra.Command, path string)
+	walk = func(c *cobra.Command, path string) {
+		if c.Name() != "hydra" && c.Name() != "completion" && c.Name() != "help" {
+			if c.Short == "" {
+				t.Errorf("%s: no Short description", path)
+			}
+			if c.Long == "" {
+				t.Errorf("%s: no Long help — users cannot learn what it does or what its flags mean", path)
+			}
+		}
+		for _, sub := range c.Commands() {
+			walk(sub, path+" "+sub.Name())
+		}
+	}
+	walk(newRootCmd(io.Discard, io.Discard), "hydra")
+}
+
+func TestHelpDoesNotDescribeAbilitiesAsLazyLoaded(t *testing.T) {
+	root := newRootCmd(io.Discard, io.Discard)
+	var walk func(c *cobra.Command)
+	walk = func(c *cobra.Command) {
+		for _, text := range []string{c.Short, c.Long} {
+			if strings.Contains(text, "lazy-loaded abilit") {
+				t.Errorf("%s: help still describes the pre-fix model: %q", c.Name(), text)
+			}
+		}
+		for _, sub := range c.Commands() {
+			walk(sub)
+		}
+	}
+	walk(root)
 }

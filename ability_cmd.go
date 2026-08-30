@@ -12,14 +12,20 @@ import (
 func newAbilityCmd(out io.Writer) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "ability",
-		Short: "manage global lazy-loaded ability workflows",
-		Long:  "Manage global ability bundles in ~/.hydra/abilities. Ability commands are always global; --global is unnecessary.",
+		Short: "Manage global ability workflows",
+		Long: "Manage global ability bundles in ~/.hydra/abilities.\n\n" +
+			"Each ability's name, triggers, and description are inlined into your agent\n" +
+			"instruction files; only the authored ABILITY.md body is read on selection.\n\n" +
+			"Ability commands are always global; --global is unnecessary.",
 	}
 
 	cmd.AddCommand(&cobra.Command{
 		Use:   "init",
-		Short: "initialize global abilities and harness wiring",
-		Args:  cobra.NoArgs,
+		Short: "Initialize the global abilities catalog and routers",
+		Long: "Create ~/.hydra/abilities, wire the discovery block into each detected agent\n" +
+			"instruction file, and install the $ability router skill for each harness.\n\n" +
+			"Never creates or rewrites an authored ability bundle.",
+		Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			s, err := abilityScopeFromCmd()
 			if err != nil {
@@ -31,8 +37,12 @@ func newAbilityCmd(out io.Writer) *cobra.Command {
 
 	cmd.AddCommand(&cobra.Command{
 		Use:   "sync",
-		Short: "validate abilities and refresh generated wiring",
-		Args:  cobra.NoArgs,
+		Short: "Validate abilities and refresh generated wiring",
+		Long: "Validate every ability bundle, then regenerate index.md, the discovery block\n" +
+			"in each agent instruction file, and the routers.\n\n" +
+			"Run this after editing an ABILITY.md by hand — nothing you author takes\n" +
+			"effect until the generated wiring is refreshed.",
+		Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			s, err := abilityScopeFromCmd()
 			if err != nil {
@@ -44,8 +54,12 @@ func newAbilityCmd(out io.Writer) *cobra.Command {
 
 	cmd.AddCommand(&cobra.Command{
 		Use:   "new <name>",
-		Short: "scaffold a global ability bundle",
-		Args:  cobra.ExactArgs(1),
+		Short: "Scaffold a global ability bundle",
+		Long: "Create ~/.hydra/abilities/<name>/ABILITY.md with frontmatter ready to fill in,\n" +
+			"then sync.\n\n" +
+			"Edit its description and triggers before relying on it, and check a phrase\n" +
+			"reaches it with `hydra ability match`.",
+		Args: cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			s, err := abilityScopeFromCmd()
 			if err != nil {
@@ -64,8 +78,12 @@ func newAbilityCmd(out io.Writer) *cobra.Command {
 func newAbilityDoctorCmd(out io.Writer) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "doctor",
-		Short: "verify global abilities and harness wiring",
-		Args:  cobra.NoArgs,
+		Short: "Check the global catalog, blocks, and routers",
+		Long: "Verify the global ability catalog and its wiring: that every bundle is valid,\n" +
+			"index.md is current, the discovery block and routers are present and current,\n" +
+			"and no trigger is dead.\n\n" +
+			"Exits non-zero when a check fails. Use --json for machine-readable output.",
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			s, err := abilityScopeFromCmd()
 			if err != nil {
