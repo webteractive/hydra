@@ -1,8 +1,13 @@
 # hydra
 
-A CLI for scoped rules and lazy-loaded abilities for AI coding agents. Rules are
-mandatory conventions selected by path, command, or situation. Abilities are optional
-global workflow bundles selected by the agent or invoked explicitly with `$ability`.
+A CLI that installs two kinds of instruction into your AI coding agents. **Rules** are
+mandatory conventions, selected by path, command, or situation. **Abilities** are optional
+global workflow bundles, invoked by name or by a trigger phrase, chosen semantically when
+neither matches, or loaded explicitly with `$ability`.
+
+Both keep their bulk out of standing context without hiding their existence: the agent
+always sees a compact table of what is available, and opens the full file only for the
+entries that actually fire.
 
 ## Install
 
@@ -21,7 +26,8 @@ hydra init      # scaffold .hydra/rules/ and wire the block into CLAUDE.md / AGE
 hydra add --glob 'app/Http/Controllers/**' \
           --title 'Extend BaseController' \
           --note  'Every controller extends BaseController for tenant scoping.'
-hydra ability new testing-notes
+hydra ability new testing-notes          # then fill in its description and triggers
+hydra ability match "write test notes"   # verify a trigger fires (exit 1 if none does)
 hydra doctor
 hydra ability doctor
 ```
@@ -155,7 +161,17 @@ prose and any skill hydra does not own are left untouched, and `hydra doctor` pl
 ## Development
 
 ```bash
-go test ./...
+go test -race ./...   # CI runs the suite with the race detector
 go vet ./...
+gofmt -l .            # must print nothing
+govulncheck ./...
+goreleaser check      # validates .goreleaser.yaml
 go build -o hydra .
 ```
+
+CI enforces gofmt, vet, the race-enabled suite, and govulncheck, with `goreleaser check`
+as a separate job so a broken release config surfaces on the PR rather than after a tag
+is pushed.
+
+Releases are cut by pushing a `vX.Y.Z` tag; `.github/workflows/release.yml` runs
+GoReleaser to build and attach the binaries.
