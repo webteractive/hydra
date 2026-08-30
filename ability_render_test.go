@@ -13,7 +13,7 @@ func TestRenderAbilityIndex(t *testing.T) {
 		Path:        "/home/user/.hydra/abilities/testing-notes/ABILITY.md",
 	}}
 	got := RenderAbilityIndex(abilities)
-	for _, want := range []string{"`testing-notes`", `Generate QA notes \| with coverage.`, abilities[0].Path} {
+	for _, want := range []string{"exact normalized ability-name match", "`testing-notes`", `Generate QA notes \| with coverage.`, abilities[0].Path} {
 		if !strings.Contains(got, want) {
 			t.Errorf("index missing %q:\n%s", want, got)
 		}
@@ -29,11 +29,24 @@ func TestRenderAbilityBlockKeepsCatalogExternal(t *testing.T) {
 	if !strings.Contains(got, filepath.ToSlash(filepath.Join(s.AbilitiesDir, abilityIndexFile))) {
 		t.Errorf("block missing catalog path:\n%s", got)
 	}
-	if !strings.Contains(got, "$ability <name>") || !strings.Contains(got, "choose semantically") {
-		t.Errorf("block missing discovery contract:\n%s", got)
+	for _, want := range []string{
+		"$ability <name>",
+		"choose semantically",
+		"Before selecting another workflow",
+		"lowercase kebab-case",
+		"treat it as an explicit invocation",
+		"available workflow also matches",
+		"semantic selection is optional",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("block missing discovery contract %q:\n%s", want, got)
+		}
 	}
 	if strings.Contains(got, "testing-notes") {
 		t.Error("block must not inline catalog entries")
+	}
+	if strings.Contains(got, "Abilities are optional") {
+		t.Error("block must not make exact-name matches optional")
 	}
 }
 

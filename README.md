@@ -86,8 +86,10 @@ An ability is a directory containing an `ABILITY.md` plus optional supporting re
 
 `ABILITY.md` requires `name` and `description` frontmatter. `hydra ability sync` keeps a
 searchable external catalog at `~/.hydra/abilities/index.md`; descriptions and bodies are
-not copied into standing agent context. A short managed instruction lets the agent decide
-when to search that catalog and load one complete ability.
+not copied into standing agent context. Before selecting another reusable workflow, the
+managed instruction requires the agent to search that catalog for an exact normalized
+ability-name match. Exact matches take priority; otherwise the agent can select an ability
+semantically and load its complete instructions.
 
 Hydra also installs one small native router skill for each detected supported harness.
 Use `$ability <name>` when you want deterministic, explicit loading. Hydra currently has
