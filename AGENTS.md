@@ -2,13 +2,14 @@
 
 This file provides guidance to AI coding agents when working with code in this repository.
 
-# hydra — installable rules curator (Go CLI)
+# hydra — installable rules and abilities curator (Go CLI)
 
-hydra is a single self-contained Go binary that installs a "rules" mechanism into any
-project (or globally with `--global`): it scaffolds a `.hydra/rules/` library of
-matcher-scoped Markdown rules, generates an index, and splices a managed block into
-whatever agent instruction files already exist (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`).
-Commands: `init`, `sync`, `add`, `new`, `list`, `doctor`, `self-update`.
+hydra is a single self-contained Go binary that installs scoped rules and global,
+lazy-loaded abilities for AI coding agents. Rules live in `.hydra/rules/` (or
+`~/.hydra/rules/` with `--global`). Ability bundles live in `~/.hydra/abilities/`, stay
+outside standing context, and can be selected by the agent or invoked through the
+generated `$ability` router. Commands: `init`, `sync`, `add`, `new`, `list`, `doctor`,
+`ability init|sync|new|list|doctor`, `self-update`.
 
 ## Build & test
 - `go test ./...` — full suite (temp-dir based, no network).
@@ -35,6 +36,11 @@ Commands: `init`, `sync`, `add`, `new`, `list`, `doctor`, `self-update`.
 - `block.go` — sentinel splicing (`<!-- hydra:rules:start/end -->`), replace-in-place.
 - `detect.go` — which agent instruction files exist at this scope.
 - `init.go` / `sync.go` / `add.go` / `new.go` / `list.go` / `doctor.go` — one command each.
+- `ability.go` / `ability_scope.go` — ability metadata, validation, and the global scope.
+- `ability_render.go` / `ability_harness.go` — external catalog, discovery block, and
+  native router adapters.
+- `ability_lifecycle.go` / `ability_list.go` / `ability_doctor.go` / `ability_cmd.go` —
+  the global ability command group.
 - `teardown.go` — removes v0.1 skill-curator artifacts.
 - `VERSION` — embedded default version; release builds inject the tag via
   `-ldflags "-X main.injectedVersion=..."` (see `.goreleaser.yaml`).
@@ -43,7 +49,8 @@ Commands: `init`, `sync`, `add`, `new`, `list`, `doctor`, `self-update`.
 - **`CLAUDE.md` and `AGENTS.md` are mirrors** — identical body, only the top title/intro
   line differs. Any edit to one MUST be replicated to the other in the same change.
 - Stdlib + cobra + `gopkg.in/yaml.v3` only — keep the dependency surface minimal.
-- **No MCP.** hydra is CLI-only by design; `hydra add` is the only write path.
+- **No MCP.** hydra is CLI-only by design; `hydra add` records rules and
+  `hydra ability new` scaffolds authored ability bundles.
 - **Never auto-commit or push.** The git diff is the review gate; ask before `git commit`.
 - Releases are cut by tagging `vX.Y.Z` and pushing the tag — goreleaser builds the binaries.
 

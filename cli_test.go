@@ -109,6 +109,35 @@ func TestRunSyncUninitializedFails(t *testing.T) {
 	}
 }
 
+func TestRunAbilityLifecycle(t *testing.T) {
+	tmp := t.TempDir()
+	home := filepath.Join(tmp, "home")
+	t.Chdir(tmp)
+	t.Setenv("HOME", home)
+
+	if _, err := runCLI(t, "ability", "init"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runCLI(t, "ability", "new", "testing-notes"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runCLI(t, "ability", "sync"); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := runCLI(t, "ability", "list"); err != nil || !strings.Contains(out, "testing-notes") {
+		t.Errorf("ability list: out=%q err=%v", out, err)
+	}
+	if out, err := runCLI(t, "ability", "list", "--json"); err != nil || !strings.Contains(out, `"description"`) {
+		t.Errorf("ability list --json: out=%q err=%v", out, err)
+	}
+	if _, err := runCLI(t, "ability", "doctor"); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := runCLI(t, "ability", "doctor", "--json"); err != nil || !strings.Contains(out, `"global abilities"`) {
+		t.Errorf("ability doctor --json: out=%q err=%v", out, err)
+	}
+}
+
 // filepath.Join("", ".hydra") is ".hydra", so a swallowed UserHomeDir failure
 // would point --global at the current directory and scaffold there while
 // reporting success. It must fail loudly instead.

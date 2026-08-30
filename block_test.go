@@ -82,6 +82,25 @@ func TestSpliceBlockIdempotent(t *testing.T) {
 	}
 }
 
+func TestSpliceManagedBlocksRemainIndependent(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "AGENTS.md")
+	rules := blockStart + "\nrules\n" + blockEnd + "\n"
+	abilities := abilityBlockStart + "\nabilities\n" + abilityBlockEnd + "\n"
+	if err := SpliceBlock(path, rules); err != nil {
+		t.Fatal(err)
+	}
+	if err := SpliceManagedBlock(path, abilities, abilityBlockStart, abilityBlockEnd); err != nil {
+		t.Fatal(err)
+	}
+	if err := SpliceBlock(path, strings.Replace(rules, "rules", "updated rules", 1)); err != nil {
+		t.Fatal(err)
+	}
+	got := readFile(t, path)
+	if !strings.Contains(got, "updated rules") || !strings.Contains(got, "abilities") {
+		t.Errorf("managed blocks interfered:\n%s", got)
+	}
+}
+
 func TestStripBlock(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "CLAUDE.md")
 	content := "# Project\n\n<!-- hydra:curator:start -->\ncurator\n<!-- hydra:curator:end -->\n\n## After\n"

@@ -82,20 +82,24 @@ func Doctor(s Scope) DoctorReport {
 // blockMatches reports whether the target's managed block is byte-identical to
 // what a fresh render would produce.
 func blockMatches(path, want string) bool {
+	return managedBlockMatches(path, want, blockStart, blockEnd)
+}
+
+func managedBlockMatches(path, want, startSentinel, endSentinel string) bool {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return false
 	}
 	content := string(data)
-	start := strings.Index(content, blockStart)
+	start := strings.Index(content, startSentinel)
 	if start < 0 {
 		return false
 	}
-	end := strings.Index(content[start:], blockEnd)
+	end := strings.Index(content[start:], endSentinel)
 	if end < 0 {
 		return false
 	}
-	got := content[start : start+end+len(blockEnd)]
+	got := content[start : start+end+len(endSentinel)]
 	return got+"\n" == want
 }
 

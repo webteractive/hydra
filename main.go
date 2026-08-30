@@ -32,8 +32,8 @@ func run(args []string, out, errw io.Writer) error {
 func newRootCmd(out, errw io.Writer) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "hydra",
-		Short: "hydra — rules library manager for AI coding agents",
-		Long:  fmt.Sprintf("hydra %s — manage a library of scoped rules for AI coding agents (Claude Code and others).", version()),
+		Short: "hydra — rules and abilities for AI coding agents",
+		Long:  fmt.Sprintf("hydra %s — manage scoped rules and global lazy-loaded abilities for AI coding agents.", version()),
 		// Subcommands handle their own error reporting; don't let cobra dump
 		// usage text or re-print returned errors (main handles that).
 		SilenceUsage:  true,
@@ -43,7 +43,7 @@ func newRootCmd(out, errw io.Writer) *cobra.Command {
 
 	root.AddCommand(&cobra.Command{
 		Use:   "init",
-		Short: "scaffold the rules library and wire it into your agent files",
+		Short: "scaffold rules and ensure global abilities are wired",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			s, err := scopeFromCmd(cmd)
@@ -84,6 +84,7 @@ func newRootCmd(out, errw io.Writer) *cobra.Command {
 
 	root.AddCommand(newListCmd(out))
 	root.AddCommand(newDoctorCmd(out))
+	root.AddCommand(newAbilityCmd(out))
 
 	root.AddCommand(&cobra.Command{
 		Use:   "version",

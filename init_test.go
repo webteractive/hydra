@@ -22,6 +22,14 @@ func TestInitFreshProject(t *testing.T) {
 	if !exists(filepath.Join(tmp, ".hydra", "rules", "index.md")) {
 		t.Error("index.md not created")
 	}
+	abilityScope := ResolveAbilityScope(filepath.Join(tmp, "home"))
+	if !exists(filepath.Join(abilityScope.AbilitiesDir, abilityIndexFile)) {
+		t.Error("global abilities were not bootstrapped")
+	}
+	abilityHarness := defaultAbilityHarness(abilityScope)
+	if !exists(abilityHarness.InstructionPath) || !exists(abilityHarness.RouterPath) {
+		t.Errorf("global ability harness was not bootstrapped: %+v", abilityHarness)
+	}
 	for _, target := range []string{"CLAUDE.md", "AGENTS.md"} {
 		p := filepath.Join(tmp, target)
 		if !exists(p) {

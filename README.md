@@ -1,8 +1,8 @@
 # hydra
 
-A CLI for managing a library of scoped rules for AI coding agents (Claude Code and
-others). Rules are committed Markdown; hydra keeps an index of them in your agent
-instruction files so an agent reads only the ones that apply to what it's doing.
+A CLI for scoped rules and lazy-loaded abilities for AI coding agents. Rules are
+mandatory conventions selected by path, command, or situation. Abilities are optional
+global workflow bundles selected by the agent or invoked explicitly with `$ability`.
 
 ## Install
 
@@ -21,22 +21,33 @@ hydra init      # scaffold .hydra/rules/ and wire the block into CLAUDE.md / AGE
 hydra add --glob 'app/Http/Controllers/**' \
           --title 'Extend BaseController' \
           --note  'Every controller extends BaseController for tenant scoping.'
+hydra ability new testing-notes
 hydra doctor
+hydra ability doctor
 ```
 
 Run any command with `--global` to operate on `~/.hydra/rules/` instead, wired into
 `~/.claude/CLAUDE.md`. The two libraries are independent — the agent loads both.
 
+Abilities are always global under `~/.hydra/abilities/`. A normal `hydra init` enables
+them for fresh installations; existing installations can opt in with
+`hydra ability init`.
+
 ## Commands
 
 | Command | Description |
 |---|---|
-| `hydra init [--global]` | Scaffold the library and wire it into your agent files. |
+| `hydra init [--global]` | Scaffold the rules scope and ensure global abilities are wired. |
 | `hydra sync [--global]` | Reindex and rewrite every managed block. |
 | `hydra add …` | Record a rule. Initializes the library if it doesn't exist. |
 | `hydra new <name>` | Scaffold a blank rule for hand-editing. |
 | `hydra list [--json]` | List rules with their matchers. |
 | `hydra doctor [--json]` | Check that everything is wired up. |
+| `hydra ability init` | Initialize the global abilities catalog and harness routers. |
+| `hydra ability sync` | Validate abilities and refresh generated wiring. |
+| `hydra ability new <name>` | Scaffold `~/.hydra/abilities/<name>/ABILITY.md`. |
+| `hydra ability list [--json]` | List abilities without loading their bodies. |
+| `hydra ability doctor [--json]` | Check the global catalog, blocks, and routers. |
 | `hydra self-update` | Update to the latest release. |
 
 ## How it works
@@ -60,6 +71,27 @@ triggers: ["auditing a Rust dependency"]
 instruction files between `<!-- hydra:rules:start -->` sentinels. The agent reads the
 table on every prompt and opens only the rule files whose matchers hit. Rules marked
 `always: true` are inlined into the block instead of indexed.
+
+### Abilities
+
+An ability is a directory containing an `ABILITY.md` plus optional supporting resources:
+
+```text
+~/.hydra/abilities/testing-notes/
+├── ABILITY.md
+├── references/
+├── scripts/
+└── assets/
+```
+
+`ABILITY.md` requires `name` and `description` frontmatter. `hydra ability sync` keeps a
+searchable external catalog at `~/.hydra/abilities/index.md`; descriptions and bodies are
+not copied into standing agent context. A short managed instruction lets the agent decide
+when to search that catalog and load one complete ability.
+
+Hydra also installs one small native router skill for each detected supported harness.
+Use `$ability <name>` when you want deterministic, explicit loading. Hydra currently has
+adapters for Claude Code, Codex/Agent Skills, and Gemini.
 
 ## Development
 

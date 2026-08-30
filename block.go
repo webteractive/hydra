@@ -14,6 +14,13 @@ var multiNewline = regexp.MustCompile(`\n{3,}`)
 // what the user wrote around it; otherwise the block is appended. The file and
 // its parent directory are created if missing.
 func SpliceBlock(path, block string) error {
+	return SpliceManagedBlock(path, block, blockStart, blockEnd)
+}
+
+// SpliceManagedBlock is the sentinel-parameterized form used by managed
+// features other than rules. Keeping the sentinel pair explicit prevents one
+// Hydra feature from replacing another feature's block.
+func SpliceManagedBlock(path, block, startSentinel, endSentinel string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
@@ -32,9 +39,9 @@ func SpliceBlock(path, block string) error {
 	block = strings.TrimRight(block, "\n") + "\n"
 
 	var updated string
-	if start := strings.Index(content, blockStart); start != -1 {
-		if end := strings.Index(content[start:], blockEnd); end != -1 {
-			tail := content[start+end+len(blockEnd):]
+	if start := strings.Index(content, startSentinel); start != -1 {
+		if end := strings.Index(content[start:], endSentinel); end != -1 {
+			tail := content[start+end+len(endSentinel):]
 			updated = content[:start] + block + strings.TrimLeft(tail, "\n")
 		}
 	}

@@ -10,6 +10,9 @@ func TestResolveScopeProject(t *testing.T) {
 	if s.RulesDir != "/work/app/.hydra/rules" {
 		t.Errorf("RulesDir = %s", s.RulesDir)
 	}
+	if s.UserHome != "/home/u" {
+		t.Errorf("UserHome = %s", s.UserHome)
+	}
 	if s.Label != "project" {
 		t.Errorf("Label = %s", s.Label)
 	}

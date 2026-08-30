@@ -6,10 +6,10 @@ import (
 	"os"
 )
 
-// Init scaffolds the rules library and wires the managed block into the scope's
-// instruction files. It is idempotent: existing rules and instruction files are
-// left alone, only missing pieces are created. Every mutating command calls it,
-// so recording a rule in a fresh project just works.
+// Init scaffolds the rules library, wires its managed block, and ensures the
+// global ability system is ready. It is idempotent and never rewrites authored
+// rules or abilities. Every mutating rule command calls it when its library is
+// absent, so a fresh project gets the complete Hydra setup.
 func Init(s Scope, out io.Writer) error {
 	if found, err := Teardown(s, out); err != nil {
 		return err
@@ -34,6 +34,13 @@ func Init(s Scope, out io.Writer) error {
 	}
 
 	if err := Sync(s, out); err != nil {
+		return err
+	}
+	abilityScope, err := abilityScopeFromRuleScope(s)
+	if err != nil {
+		return err
+	}
+	if err := AbilityInit(abilityScope, out); err != nil {
 		return err
 	}
 

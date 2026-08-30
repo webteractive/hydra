@@ -16,6 +16,7 @@ type Scope struct {
 	Global   bool   `json:"global"`
 	Label    string `json:"label"`     // "project" | "global"
 	Base     string `json:"base"`      // cwd for project, home for global
+	UserHome string `json:"user_home"` // user home, retained for global abilities
 	Home     string `json:"home"`      // <Base>/.hydra
 	RulesDir string `json:"rules_dir"` // <Base>/.hydra/rules
 }
@@ -30,6 +31,7 @@ func ResolveScope(global bool, cwd, home string) Scope {
 		Global:   global,
 		Label:    label,
 		Base:     base,
+		UserHome: home,
 		Home:     hydraHome,
 		RulesDir: filepath.Join(hydraHome, "rules"),
 	}
