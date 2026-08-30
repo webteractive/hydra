@@ -16,15 +16,17 @@ const abilityFilename = "ABILITY.md"
 // Ability is one optional workflow bundle. Path always points at the authored
 // ABILITY.md; supporting resources live beside it and are not parsed by Hydra.
 type Ability struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Path        string `json:"path"`
-	Body        string `json:"-"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Triggers    []string `json:"triggers,omitempty"`
+	Path        string   `json:"path"`
+	Body        string   `json:"-"`
 }
 
 type abilityFrontmatter struct {
-	Name        string `yaml:"name"`
-	Description string `yaml:"description"`
+	Name        string   `yaml:"name"`
+	Description string   `yaml:"description"`
+	Triggers    []string `yaml:"triggers,omitempty"`
 }
 
 // ParseAbility validates the metadata Hydra needs for discovery. Unknown
@@ -46,6 +48,9 @@ func ParseAbility(bundleName, path, content string) (Ability, error) {
 	a.Body = strings.TrimLeft(content[len(m[0]):], "\n")
 
 	var problems []error
+	triggers, triggerProblems := normalizeTriggers(fm.Triggers)
+	a.Triggers = triggers
+	problems = append(problems, triggerProblems...)
 	if a.Name == "" {
 		problems = append(problems, fmt.Errorf("name is required"))
 	} else {
@@ -111,10 +116,38 @@ func LoadAbilities(dir string) ([]Ability, error) {
 	return abilities, nil
 }
 
+// normalizeTriggers lowercases and de-duplicates the authored phrases so the
+// generated index is stable and matching stays case-insensitive. Triggers are
+// optional, but an unusable one is an error rather than a silent drop: a
+// trigger that never fires is exactly the failure this field exists to prevent.
+func normalizeTriggers(authored []string) ([]string, []error) {
+	var (
+		triggers []string
+		problems []error
+	)
+	seen := map[string]bool{}
+	for _, raw := range authored {
+		trigger := strings.ToLower(strings.TrimSpace(raw))
+		switch {
+		case trigger == "":
+			problems = append(problems, fmt.Errorf("trigger must not be blank"))
+		case strings.ContainsAny(trigger, "\r\n"):
+			problems = append(problems, fmt.Errorf("trigger must be one line: %q", raw))
+		case seen[trigger]:
+		default:
+			seen[trigger] = true
+			triggers = append(triggers, trigger)
+		}
+	}
+	return triggers, problems
+}
+
 func RenderAbilityFile(name string) string {
 	return fmt.Sprintf(`---
 name: %s
 description: TODO describe when this ability is useful.
+triggers:
+  - TODO short phrase a user would say to invoke this
 ---
 
 # %s

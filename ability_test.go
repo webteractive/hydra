@@ -84,3 +84,43 @@ func TestRenderAbilityFileParses(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestParseAbilityTriggers(t *testing.T) {
+	content := "---\nname: example\ndescription: Useful.\ntriggers:\n  - Prepare For Production\n  - \"Primetime!\"\n  - prepare for production\n---\n\n# Example\n"
+	ability, err := ParseAbility("example", "/tmp/example/ABILITY.md", content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"prepare for production", "primetime!"}
+	if len(ability.Triggers) != len(want) {
+		t.Fatalf("triggers=%q, want %q", ability.Triggers, want)
+	}
+	for i, trigger := range want {
+		if ability.Triggers[i] != trigger {
+			t.Errorf("triggers=%q, want %q", ability.Triggers, want)
+		}
+	}
+}
+
+func TestParseAbilityTriggersAreOptional(t *testing.T) {
+	ability, err := ParseAbility("example", "/tmp/example/ABILITY.md", validAbility("example", "Useful."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ability.Triggers) != 0 {
+		t.Errorf("expected no triggers, got %q", ability.Triggers)
+	}
+}
+
+func TestParseAbilityRejectsUnusableTriggers(t *testing.T) {
+	cases := map[string]string{
+		"empty trigger":     "---\nname: example\ndescription: Useful.\ntriggers:\n  - \"\"\n---\n",
+		"blank trigger":     "---\nname: example\ndescription: Useful.\ntriggers:\n  - \"   \"\n---\n",
+		"multiline trigger": "---\nname: example\ndescription: Useful.\ntriggers:\n  - |\n    one\n    two\n---\n",
+	}
+	for label, content := range cases {
+		if _, err := ParseAbility("example", "/tmp/example/ABILITY.md", content); err == nil {
+			t.Errorf("%s: expected validation error", label)
+		}
+	}
+}

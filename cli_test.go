@@ -52,8 +52,11 @@ func TestRunLifecycleProject(t *testing.T) {
 	}
 
 	out, err := runCLI(t, "list")
-	if err != nil || !strings.Contains(out, "controllers") {
+	if err != nil || !strings.Contains(out, "Rules in project scope (1)") || !strings.Contains(out, "Files: app/Http/Controllers/**") {
 		t.Errorf("list: out=%q err=%v", out, err)
+	}
+	if out, err := runCLI(t, "list", "--json"); err != nil || !strings.Contains(out, `"name": "controllers"`) {
+		t.Errorf("list --json: out=%q err=%v", out, err)
 	}
 	if _, err := runCLI(t, "doctor"); err != nil {
 		t.Fatalf("doctor should pass on a fresh install: %v", err)
@@ -124,7 +127,7 @@ func TestRunAbilityLifecycle(t *testing.T) {
 	if _, err := runCLI(t, "ability", "sync"); err != nil {
 		t.Fatal(err)
 	}
-	if out, err := runCLI(t, "ability", "list"); err != nil || !strings.Contains(out, "testing-notes") {
+	if out, err := runCLI(t, "ability", "list"); err != nil || !strings.Contains(out, "Invoke: $ability testing-notes") {
 		t.Errorf("ability list: out=%q err=%v", out, err)
 	}
 	if out, err := runCLI(t, "ability", "list", "--json"); err != nil || !strings.Contains(out, `"description"`) {

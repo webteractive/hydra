@@ -20,10 +20,9 @@ func touch(t *testing.T, path string) {
 func TestDetectTargetsProject(t *testing.T) {
 	tmp := t.TempDir()
 	touch(t, filepath.Join(tmp, "CLAUDE.md"))
-	touch(t, filepath.Join(tmp, "GEMINI.md"))
 
 	s := ResolveScope(false, tmp, filepath.Join(tmp, "home"))
-	want := []string{filepath.Join(tmp, "CLAUDE.md"), filepath.Join(tmp, "GEMINI.md")}
+	want := []string{filepath.Join(tmp, "CLAUDE.md")}
 	if got := DetectTargets(s); !reflect.DeepEqual(got, want) {
 		t.Errorf("DetectTargets = %v want %v", got, want)
 	}

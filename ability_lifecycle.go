@@ -10,6 +10,10 @@ import (
 // AbilityInit creates the global ability library and all generated wiring. It
 // never creates or rewrites an authored ability bundle.
 func AbilityInit(s AbilityScope, out io.Writer) error {
+	if _, err := removeGeminiAbilityArtifacts(s, out); err != nil {
+		return err
+	}
+
 	if !isDir(s.AbilitiesDir) {
 		if err := os.MkdirAll(s.AbilitiesDir, 0o755); err != nil {
 			return err
@@ -66,7 +70,7 @@ func AbilitySync(s AbilityScope, out io.Writer) error {
 	if len(harnesses) == 0 {
 		fmt.Fprintln(out, "warning: no global agent instruction files found — run 'hydra ability init' to create one")
 	}
-	block := RenderAbilityBlock(s)
+	block := RenderAbilityBlock(s, abilities)
 	router := RenderAbilityRouter(s)
 	for _, harness := range harnesses {
 		if err := SpliceManagedBlock(harness.InstructionPath, block, abilityBlockStart, abilityBlockEnd); err != nil {

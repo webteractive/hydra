@@ -75,6 +75,7 @@ func Doctor(s Scope) DoctorReport {
 	}
 
 	add("no v0.1 skill-curator artifacts", !hasV01Artifacts(s), sevWarning, "run 'hydra init' to clean up")
+	add("no gemini artifacts", !hasGeminiArtifacts(s), sevWarning, "gemini support was removed — run 'hydra init' to clean up")
 
 	return rep
 }

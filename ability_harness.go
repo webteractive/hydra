@@ -28,11 +28,6 @@ func abilityHarnesses(s AbilityScope) []AbilityHarness {
 			InstructionPath: filepath.Join(s.UserHome, ".codex", "AGENTS.md"),
 			RouterPath:      filepath.Join(s.UserHome, ".agents", "skills", "ability", "SKILL.md"),
 		},
-		{
-			Name:            "gemini",
-			InstructionPath: filepath.Join(s.UserHome, ".gemini", "GEMINI.md"),
-			RouterPath:      filepath.Join(s.UserHome, ".gemini", "skills", "ability", "SKILL.md"),
-		},
 	}
 }
 

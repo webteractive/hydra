@@ -14,7 +14,7 @@ func Init(s Scope, out io.Writer) error {
 	if found, err := Teardown(s, out); err != nil {
 		return err
 	} else if found {
-		fmt.Fprintln(out, "cleaned up a v0.1 skill-curator install")
+		fmt.Fprintln(out, "cleaned up artifacts hydra no longer owns")
 	}
 
 	if !isDir(s.RulesDir) {

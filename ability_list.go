@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 )
@@ -34,8 +33,10 @@ func AbilityList(s AbilityScope) ([]AbilityInfo, error) {
 func newAbilityListCmd(out io.Writer) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "list global abilities",
-		Args:  cobra.NoArgs,
+		Short: "Show available abilities",
+		Long: "Show global abilities in a readable format, including how to invoke each one.\n\n" +
+			"Use --json for stable, machine-readable output intended for agents and scripts.",
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			s, err := abilityScopeFromCmd()
 			if err != nil {
@@ -53,13 +54,28 @@ func newAbilityListCmd(out io.Writer) *cobra.Command {
 				fmt.Fprintln(out, string(data))
 				return nil
 			}
-			tw := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
-			for _, ability := range abilities {
-				fmt.Fprintf(tw, "%s\t%s\t%s\n", ability.Name, ability.Description, ability.Path)
-			}
-			return tw.Flush()
+			renderAbilityListText(out, abilities)
+			return nil
 		},
 	}
-	cmd.Flags().Bool("json", false, "output as JSON")
+	cmd.Flags().Bool("json", false, "emit machine-readable JSON for agents and scripts")
 	return cmd
+}
+
+func renderAbilityListText(out io.Writer, abilities []AbilityInfo) {
+	fmt.Fprintf(out, "Global abilities (%d)\n", len(abilities))
+	if len(abilities) == 0 {
+		fmt.Fprintln(out, "\nNo abilities found. Create one with hydra ability new <name>.")
+		fmt.Fprintln(out, "\nFor agents and scripts: hydra ability list --json")
+		return
+	}
+
+	for _, ability := range abilities {
+		fmt.Fprintf(out, "\n%s\n", ability.Name)
+		fmt.Fprintf(out, "  %s\n", ability.Description)
+		fmt.Fprintf(out, "  Invoke: $ability %s\n", ability.Name)
+		fmt.Fprintf(out, "  Source: %s\n", ability.Path)
+	}
+
+	fmt.Fprintln(out, "\nFor agents and scripts: hydra ability list --json")
 }

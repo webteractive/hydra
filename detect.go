@@ -9,13 +9,11 @@ func candidateTargets(s Scope) []string {
 		return []string{
 			filepath.Join(s.Base, ".claude", "CLAUDE.md"),
 			filepath.Join(s.Base, ".codex", "AGENTS.md"),
-			filepath.Join(s.Base, ".gemini", "GEMINI.md"),
 		}
 	}
 	return []string{
 		filepath.Join(s.Base, "CLAUDE.md"),
 		filepath.Join(s.Base, "AGENTS.md"),
-		filepath.Join(s.Base, "GEMINI.md"),
 	}
 }
 

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 )
@@ -47,8 +46,10 @@ func List(s Scope) ([]RuleInfo, error) {
 func newListCmd(out io.Writer) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "list rules in the library",
-		Args:  cobra.NoArgs,
+		Short: "Show rules in this scope",
+		Long: "Show rules in this scope in a readable, labeled format.\n\n" +
+			"Use --json for stable, machine-readable output intended for agents and scripts.",
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			s, err := scopeFromCmd(cmd)
 			if err != nil {
@@ -66,21 +67,43 @@ func newListCmd(out io.Writer) *cobra.Command {
 				fmt.Fprintln(out, string(b))
 				return nil
 			}
-			tw := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
-			for _, r := range rules {
-				tier := ""
-				if r.Always {
-					tier = "always"
-				}
-				matchers := strings.Join(append(append([]string{}, r.Paths...), r.Commands...), " · ")
-				if matchers == "" {
-					matchers = strings.Join(r.Triggers, " · ")
-				}
-				fmt.Fprintf(tw, "%s\t%s\t%s\n", tier, r.Name, matchers)
-			}
-			return tw.Flush()
+			renderRuleListText(out, s, rules)
+			return nil
 		},
 	}
-	cmd.Flags().Bool("json", false, "output as JSON")
+	cmd.Flags().Bool("json", false, "emit machine-readable JSON for agents and scripts")
 	return cmd
+}
+
+func renderRuleListText(out io.Writer, s Scope, rules []RuleInfo) {
+	jsonCommand := "hydra list --json"
+	if s.Global {
+		jsonCommand = "hydra list --global --json"
+	}
+
+	fmt.Fprintf(out, "Rules in %s scope (%d)\n", s.Label, len(rules))
+	if len(rules) == 0 {
+		fmt.Fprintln(out, "\nNo rules found. Add one with hydra add or hydra new <name>.")
+		fmt.Fprintf(out, "\nFor agents and scripts: %s\n", jsonCommand)
+		return
+	}
+
+	for _, rule := range rules {
+		fmt.Fprintf(out, "\n%s (%s)\n", rule.Title, rule.Name)
+		if rule.Always {
+			fmt.Fprintln(out, "  Applies: Every task (always loaded)")
+		}
+		if len(rule.Paths) > 0 {
+			fmt.Fprintf(out, "  Files: %s\n", strings.Join(rule.Paths, " · "))
+		}
+		if len(rule.Commands) > 0 {
+			fmt.Fprintf(out, "  Commands: %s\n", strings.Join(rule.Commands, " · "))
+		}
+		if len(rule.Triggers) > 0 {
+			fmt.Fprintf(out, "  When: %s\n", strings.Join(rule.Triggers, " · "))
+		}
+		fmt.Fprintf(out, "  Source: %s\n", rule.Path)
+	}
+
+	fmt.Fprintf(out, "\nFor agents and scripts: %s\n", jsonCommand)
 }

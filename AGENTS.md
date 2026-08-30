@@ -6,9 +6,10 @@ This file provides guidance to AI coding agents when working with code in this r
 
 hydra is a single self-contained Go binary that installs scoped rules and global,
 lazy-loaded abilities for AI coding agents. Rules live in `.hydra/rules/` (or
-`~/.hydra/rules/` with `--global`). Ability bundles live in `~/.hydra/abilities/`, stay
-outside standing context, and can be selected by the agent or invoked through the
-generated `$ability` router. Commands: `init`, `sync`, `add`, `new`, `list`, `doctor`,
+`~/.hydra/rules/` with `--global`). Ability bundles live in `~/.hydra/abilities/`; their
+name, triggers, and description are inlined into the managed instruction block while the
+authored body stays on disk until selected, and they can be matched by the agent or
+invoked through the generated `$ability` router. Commands: `init`, `sync`, `add`, `new`, `list`, `doctor`,
 `ability init|sync|new|list|doctor`, `self-update`.
 
 ## Build & test
@@ -37,11 +38,15 @@ generated `$ability` router. Commands: `init`, `sync`, `add`, `new`, `list`, `do
 - `detect.go` — which agent instruction files exist at this scope.
 - `init.go` / `sync.go` / `add.go` / `new.go` / `list.go` / `doctor.go` — one command each.
 - `ability.go` / `ability_scope.go` — ability metadata, validation, and the global scope.
+- `ability_match.go` — offline phrase resolution (`hydra ability match`), mirroring the
+  name-then-trigger contract the discovery block gives the agent.
 - `ability_render.go` / `ability_harness.go` — external catalog, discovery block, and
   native router adapters.
 - `ability_lifecycle.go` / `ability_list.go` / `ability_doctor.go` / `ability_cmd.go` —
   the global ability command group.
-- `teardown.go` — removes v0.1 skill-curator artifacts.
+- `teardown.go` — removes artifacts hydra no longer owns: v0.1 skill-curator files and
+  the Gemini wiring dropped after v0.2. Only sentinel-delimited blocks and files still
+  carrying hydra's ownership marker are touched.
 - `VERSION` — embedded default version; release builds inject the tag via
   `-ldflags "-X main.injectedVersion=..."` (see `.goreleaser.yaml`).
 

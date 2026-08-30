@@ -56,6 +56,7 @@ func newAbilityCmd(out io.Writer) *cobra.Command {
 	})
 
 	cmd.AddCommand(newAbilityListCmd(out))
+	cmd.AddCommand(newAbilityMatchCmd(out))
 	cmd.AddCommand(newAbilityDoctorCmd(out))
 	return cmd
 }

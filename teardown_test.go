@@ -251,3 +251,101 @@ func TestDoctorIgnoresLiveAuthoredLinks(t *testing.T) {
 		t.Error("a live authored skill link is not v0.1 wreckage")
 	}
 }
+
+func TestTeardownRemovesGeminiArtifacts(t *testing.T) {
+	home := t.TempDir()
+	s := ResolveScope(true, home, home)
+	as := ResolveAbilityScope(home)
+
+	gemini := filepath.Join(home, ".gemini", "GEMINI.md")
+	mustWrite(t, gemini, "# My Gemini notes\n\nKeep this prose.\n\n"+
+		blockStart+"\nrules block\n"+blockEnd+"\n\n"+
+		abilityBlockStart+"\nabilities block\n"+abilityBlockEnd+"\n")
+	router := filepath.Join(home, ".gemini", "skills", "ability", "SKILL.md")
+	mustWrite(t, router, routerOwnedMarker+"\nrouter\n")
+
+	if !hasGeminiArtifacts(s) || !hasGeminiAbilityArtifacts(as) {
+		t.Fatal("expected artifacts to be detected before teardown")
+	}
+
+	var out bytes.Buffer
+	if _, err := Teardown(s, &out); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := removeGeminiAbilityArtifacts(as, &out); err != nil {
+		t.Fatal(err)
+	}
+
+	body, err := os.ReadFile(gemini)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "Keep this prose.") {
+		t.Errorf("authored prose must survive teardown:\n%s", body)
+	}
+	for _, sentinel := range []string{blockStart, abilityBlockStart} {
+		if strings.Contains(string(body), sentinel) {
+			t.Errorf("managed block %q should be gone:\n%s", sentinel, body)
+		}
+	}
+	if exists(router) {
+		t.Error("hydra-owned gemini router should be removed")
+	}
+	if hasGeminiArtifacts(s) || hasGeminiAbilityArtifacts(as) {
+		t.Error("doctor should report clean after teardown")
+	}
+}
+
+// Abilities are always global, so the global Gemini wiring must be cleaned even
+// when init runs inside a project — the common upgrade path.
+func TestAbilityInitCleansGlobalGeminiArtifactsFromProjectScope(t *testing.T) {
+	home := t.TempDir()
+	project := t.TempDir()
+	s := ResolveScope(false, project, home)
+
+	gemini := filepath.Join(home, ".gemini", "GEMINI.md")
+	mustWrite(t, gemini, "# Notes\n\n"+abilityBlockStart+"\nstale\n"+abilityBlockEnd+"\n")
+	router := filepath.Join(home, ".gemini", "skills", "ability", "SKILL.md")
+	mustWrite(t, router, routerOwnedMarker+"\nrouter\n")
+
+	var out bytes.Buffer
+	if err := Init(s, &out); err != nil {
+		t.Fatal(err)
+	}
+
+	as := ResolveAbilityScope(home)
+	if hasGeminiAbilityArtifacts(as) {
+		body, _ := os.ReadFile(gemini)
+		t.Errorf("project-scope init must clean the global gemini ability wiring:\n%s\nrouter exists=%v", body, exists(router))
+	}
+}
+
+// A read error must not be mistaken for "already gone" — that would report a
+// clean teardown while doctor keeps flagging the artifact.
+func TestRemoveGeminiAbilityArtifactsReportsReadFailures(t *testing.T) {
+	home := t.TempDir()
+	as := ResolveAbilityScope(home)
+	// A directory where the router file is expected: ReadFile fails with EISDIR.
+	if err := os.MkdirAll(filepath.Join(home, ".gemini", "skills", "ability", "SKILL.md"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if _, err := removeGeminiAbilityArtifacts(as, &out); err == nil {
+		t.Error("an unreadable router must surface an error, not be treated as absent")
+	}
+}
+
+func TestTeardownKeepsForeignGeminiRouter(t *testing.T) {
+	home := t.TempDir()
+	as := ResolveAbilityScope(home)
+	router := filepath.Join(home, ".gemini", "skills", "ability", "SKILL.md")
+	mustWrite(t, router, "# hand-authored, not hydra's\n")
+
+	var out bytes.Buffer
+	if _, err := removeGeminiAbilityArtifacts(as, &out); err != nil {
+		t.Fatal(err)
+	}
+	if !exists(router) {
+		t.Error("a skill hydra does not own must never be deleted")
+	}
+}

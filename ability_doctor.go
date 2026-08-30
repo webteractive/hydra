@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -33,9 +34,46 @@ func AbilityDoctor(s AbilityScope) DoctorReport {
 	currentIndex, _ := os.ReadFile(indexPath)
 	add("abilities index.md is current", string(currentIndex) == RenderAbilityIndex(abilities), sevWarning, "run 'hydra ability sync'")
 
+	var untriggered []string
+	for _, ability := range abilities {
+		if len(ability.Triggers) == 0 {
+			untriggered = append(untriggered, ability.Name)
+		}
+	}
+	add("every ability has triggers", len(untriggered) == 0, sevWarning,
+		"these rely on description matching alone and may never fire: "+strings.Join(untriggered, ", "))
+
+	// A name match is decisive, so a trigger that normalizes to some other
+	// ability's name can never fire. Overlapping triggers between abilities are
+	// deliberately not flagged: the agent resolves those from context.
+	names := map[string]bool{}
+	for _, ability := range abilities {
+		names[ability.Name] = true
+	}
+	var shadowed []string
+	for _, ability := range abilities {
+		for _, trigger := range ability.Triggers {
+			// Mirror MatchAbilities, which tries both the raw and the
+			// filler-stripped wording before falling through to triggers.
+			tokens := matchTokens(trigger)
+			for _, owner := range []string{kebabForm(tokens), kebabForm(stripFiller(tokens))} {
+				if owner != ability.Name && names[owner] {
+					shadowed = append(shadowed, fmt.Sprintf("%q on %s is always claimed by %s", trigger, ability.Name, owner))
+					break
+				}
+			}
+		}
+	}
+	sort.Strings(shadowed)
+	add("no trigger is shadowed by an ability name", len(shadowed) == 0, sevWarning,
+		"these can never fire: "+strings.Join(shadowed, "; "))
+
+	add("no gemini artifacts", !hasGeminiAbilityArtifacts(s), sevWarning,
+		"gemini support was removed — run 'hydra ability init' to clean up")
+
 	harnesses := detectAbilityHarnesses(s)
 	add("at least one global instruction file detected", len(harnesses) > 0, sevWarning, "run 'hydra ability init'")
-	block := RenderAbilityBlock(s)
+	block := RenderAbilityBlock(s, abilities)
 	router := RenderAbilityRouter(s)
 	for _, harness := range harnesses {
 		add("abilities block current in "+harness.InstructionPath,

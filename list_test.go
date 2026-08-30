@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"path/filepath"
 	"strings"
@@ -59,5 +60,50 @@ func TestListJSONShape(t *testing.T) {
 		if !strings.Contains(string(b), want) {
 			t.Errorf("JSON missing %s: %s", want, b)
 		}
+	}
+}
+
+func TestRenderRuleListTextLabelsEveryMatcher(t *testing.T) {
+	s := ResolveScope(false, "/work/project", "/work/home")
+	rules := []RuleInfo{{
+		Name:     "rust",
+		Title:    "Rust dependencies",
+		Path:     ".hydra/rules/rust.md",
+		Paths:    []string{"**/Cargo.toml"},
+		Commands: []string{"cargo add"},
+		Triggers: []string{"auditing a dependency"},
+	}}
+
+	var out bytes.Buffer
+	renderRuleListText(&out, s, rules)
+	got := out.String()
+	for _, want := range []string{
+		"Rules in project scope (1)",
+		"Rust dependencies (rust)",
+		"Files: **/Cargo.toml",
+		"Commands: cargo add",
+		"When: auditing a dependency",
+		"Source: .hydra/rules/rust.md",
+		"For agents and scripts: hydra list --json",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("human output missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestRenderRuleListTextExplainsEmptyScope(t *testing.T) {
+	var out bytes.Buffer
+	renderRuleListText(&out, ResolveScope(false, "/work/project", "/work/home"), nil)
+	if got := out.String(); !strings.Contains(got, "No rules found") || !strings.Contains(got, "hydra add") {
+		t.Errorf("empty output should explain what to do next:\n%s", got)
+	}
+}
+
+func TestRenderRuleListTextPreservesGlobalScopeInJSONHint(t *testing.T) {
+	var out bytes.Buffer
+	renderRuleListText(&out, ResolveScope(true, "/work/project", "/work/home"), nil)
+	if got := out.String(); !strings.Contains(got, "hydra list --global --json") {
+		t.Errorf("global output should preserve scope in the JSON hint:\n%s", got)
 	}
 }

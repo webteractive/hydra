@@ -17,11 +17,18 @@ const (
 	curatorSkillName  = "skill-curator"
 )
 
-// Teardown removes every v0.1 skill-curator artifact and reports whether it
-// found any. Authored content is never destroyed: .hydra/skills/ is left in
-// place and named in the output so it can be salvaged by hand.
+// Teardown removes artifacts hydra no longer owns — v0.1 skill-curator files,
+// and the Gemini wiring dropped after v0.2 — and reports whether it found any.
+// Authored content is never destroyed: .hydra/skills/ is left in place and
+// named in the output so it can be salvaged by hand.
 func Teardown(s Scope, out io.Writer) (bool, error) {
 	found := false
+
+	removed, err := removeGeminiArtifacts(s, out)
+	if err != nil {
+		return found, err
+	}
+	found = found || removed
 
 	for _, name := range []string{curatorHookMarker, "curator.log", "config"} {
 		p := filepath.Join(s.Home, name)
@@ -264,4 +271,98 @@ func groupHasCommand(group any, marker string) bool {
 		}
 	}
 	return false
+}
+
+// Gemini support was removed after v0.2. Cleanup is split the way the wiring
+// was: the rules block follows the rules scope, while the ability block and its
+// router are always global and so follow the ability scope. Keeping them
+// together under the rules scope would strand the global ability artifacts
+// whenever init ran inside a project.
+
+// geminiInstructionPath is where hydra used to write its managed rules block.
+func geminiInstructionPath(s Scope) string {
+	if s.Global {
+		return filepath.Join(s.Base, ".gemini", "GEMINI.md")
+	}
+	return filepath.Join(s.Base, "GEMINI.md")
+}
+
+// removeGeminiArtifacts strips hydra's managed rules block from GEMINI.md. The
+// user's own prose is untouched — only sentinel-delimited blocks are removed.
+func removeGeminiArtifacts(s Scope, out io.Writer) (bool, error) {
+	path := geminiInstructionPath(s)
+	stripped, err := StripBlock(path, blockStart, blockEnd)
+	if err != nil {
+		return false, err
+	}
+	if stripped {
+		fmt.Fprintf(out, "  stripped gemini rules block from %s\n", path)
+	}
+	return stripped, nil
+}
+
+// hasGeminiArtifacts reports whether a rules block is left for Teardown.
+func hasGeminiArtifacts(s Scope) bool {
+	data, err := os.ReadFile(geminiInstructionPath(s))
+	return err == nil && strings.Contains(string(data), blockStart)
+}
+
+// removeGeminiAbilityArtifacts strips the abilities block from the global
+// GEMINI.md and deletes the ability router hydra installed. The router only
+// goes if it still carries hydra's ownership marker, so a hand-authored skill
+// at that path is left alone — that directory holds other tools' skills too.
+func removeGeminiAbilityArtifacts(s AbilityScope, out io.Writer) (bool, error) {
+	found := false
+
+	instructions := filepath.Join(s.UserHome, ".gemini", "GEMINI.md")
+	stripped, err := StripBlock(instructions, abilityBlockStart, abilityBlockEnd)
+	if err != nil {
+		return found, err
+	}
+	if stripped {
+		fmt.Fprintf(out, "  stripped gemini abilities block from %s\n", instructions)
+		found = true
+	}
+
+	router := filepath.Join(s.UserHome, ".gemini", "skills", "ability", "SKILL.md")
+	data, err := os.ReadFile(router)
+	switch {
+	case os.IsNotExist(err):
+		return found, nil
+	case err != nil:
+		return found, err
+	case !strings.Contains(string(data), routerOwnedMarker):
+		fmt.Fprintf(out, "  kept     %s (not Hydra-owned)\n", router)
+		return found, nil
+	}
+	if err := os.Remove(router); err != nil {
+		return found, err
+	}
+	fmt.Fprintf(out, "  removed  %s\n", router)
+	found = true
+
+	// Prune the directories hydra created for the router, never a shared one
+	// that still holds someone else's skills.
+	for dir := filepath.Dir(router); dir != s.UserHome; dir = filepath.Dir(dir) {
+		entries, readErr := os.ReadDir(dir)
+		if readErr != nil || len(entries) > 0 {
+			break
+		}
+		if err := os.Remove(dir); err != nil {
+			break
+		}
+		fmt.Fprintf(out, "  removed  %s\n", dir)
+	}
+	return found, nil
+}
+
+// hasGeminiAbilityArtifacts reports whether global ability wiring is left.
+func hasGeminiAbilityArtifacts(s AbilityScope) bool {
+	if data, err := os.ReadFile(filepath.Join(s.UserHome, ".gemini", "GEMINI.md")); err == nil {
+		if strings.Contains(string(data), abilityBlockStart) {
+			return true
+		}
+	}
+	data, err := os.ReadFile(filepath.Join(s.UserHome, ".gemini", "skills", "ability", "SKILL.md"))
+	return err == nil && strings.Contains(string(data), routerOwnedMarker)
 }

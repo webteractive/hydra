@@ -12,14 +12,13 @@ func TestDetectAbilityHarnesses(t *testing.T) {
 	home := t.TempDir()
 	s := ResolveAbilityScope(home)
 	mustWrite(t, filepath.Join(home, ".codex", "AGENTS.md"), "# Codex\n")
-	mustWrite(t, filepath.Join(home, ".gemini", "GEMINI.md"), "# Gemini\n")
 
 	got := detectAbilityHarnesses(s)
 	var names []string
 	for _, harness := range got {
 		names = append(names, harness.Name)
 	}
-	if want := []string{"codex", "gemini"}; !reflect.DeepEqual(names, want) {
+	if want := []string{"codex"}; !reflect.DeepEqual(names, want) {
 		t.Errorf("harnesses = %v want %v", names, want)
 	}
 	if got[0].RouterPath != filepath.Join(home, ".agents", "skills", "ability", "SKILL.md") {

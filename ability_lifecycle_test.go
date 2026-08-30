@@ -14,7 +14,6 @@ func TestAbilityInitAndSyncAllDetectedHarnesses(t *testing.T) {
 	for _, path := range []string{
 		filepath.Join(home, ".claude", "CLAUDE.md"),
 		filepath.Join(home, ".codex", "AGENTS.md"),
-		filepath.Join(home, ".gemini", "GEMINI.md"),
 	} {
 		mustWrite(t, path, "# Existing\n")
 	}
