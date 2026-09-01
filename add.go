@@ -13,6 +13,7 @@ import (
 type AddRequest struct {
 	Title    string
 	Note     string
+	Area     string
 	Always   bool
 	Paths    []string
 	Commands []string
@@ -47,7 +48,10 @@ func Add(s Scope, req AddRequest, out io.Writer) error {
 		return err
 	}
 
-	area := areaKey(req)
+	area, err := resolveArea(req)
+	if err != nil {
+		return err
+	}
 	target, existing := findArea(rules, area)
 
 	rule := Rule{Name: target, Path: filepath.Join(s.RulesDir, target+".md")}
@@ -79,6 +83,20 @@ func Add(s Scope, req AddRequest, out io.Writer) error {
 	return Sync(s, out)
 }
 
+// resolveArea honours an explicit --area and otherwise derives one. Deriving is
+// sensitive to argument order — the first glob or the first command wins — so an
+// explicit area is the only way to state where a rule belongs rather than
+// arranging flags until it lands there.
+func resolveArea(req AddRequest) (string, error) {
+	if req.Area == "" {
+		return areaKey(req), nil
+	}
+	if err := validRuleName(req.Area); err != nil {
+		return "", fmt.Errorf("--area %q: %w", req.Area, err)
+	}
+	return req.Area, nil
+}
+
 // findArea returns the filename for an area plus the rule already occupying it,
 // if any. Area keys are derived deterministically, so two rules for the same
 // area always resolve to the same file and share it.
@@ -96,8 +114,10 @@ var (
 	nonSlug     = regexp.MustCompile(`[^a-z0-9]+`)
 )
 
-// areaKey picks the file a rule belongs in. Precedence is fixed regardless of
-// flag order: first glob, then first command, then the title.
+// areaKey picks the file a rule belongs in when --area is not given. The
+// category order is fixed — glob, then command, then title — but which glob or
+// command wins is the one passed first, so the resulting filename depends on
+// argument order. Pass --area when that matters.
 func areaKey(req AddRequest) string {
 	if len(req.Paths) > 0 {
 		if seg := lastMeaningfulSegment(req.Paths[0]); seg != "" {

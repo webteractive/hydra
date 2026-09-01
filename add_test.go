@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -194,5 +195,73 @@ func TestAddGlobAreaKeepsEntryHeadings(t *testing.T) {
 	}
 	if !strings.Contains(got, "## Extend BaseController") {
 		t.Errorf("entry heading missing:\n%s", got)
+	}
+}
+
+// Without --area the file is inferred from the first glob, then the first
+// command — so argument order silently decides where a rule lives. --area
+// states it instead.
+func TestAddAreaOverridesDerivation(t *testing.T) {
+	s, tmp := addScope(t)
+	var out bytes.Buffer
+	req := AddRequest{
+		Title:    "Run housekeeping after publishing a release",
+		Note:     "Clean build output.",
+		Area:     "releases",
+		Commands: []string{"git tag", "goreleaser"},
+	}
+	if err := Add(s, req, &out); err != nil {
+		t.Fatal(err)
+	}
+	if !exists(filepath.Join(tmp, ".hydra", "rules", "releases.md")) {
+		t.Error("rule should be filed under the requested area")
+	}
+	if exists(filepath.Join(tmp, ".hydra", "rules", "git.md")) {
+		t.Error("--area must override the command-derived area")
+	}
+}
+
+func TestAddAreaGroupsRulesTogether(t *testing.T) {
+	s, tmp := addScope(t)
+	var out bytes.Buffer
+	for _, title := range []string{"First release rule", "Second release rule"} {
+		if err := Add(s, AddRequest{Title: title, Note: "Body.", Area: "releases", Triggers: []string{"releasing"}}, &out); err != nil {
+			t.Fatal(err)
+		}
+	}
+	body, err := os.ReadFile(filepath.Join(tmp, ".hydra", "rules", "releases.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"## First release rule", "## Second release rule"} {
+		if !strings.Contains(string(body), want) {
+			t.Errorf("both rules should share the area file, missing %q:\n%s", want, body)
+		}
+	}
+}
+
+func TestAddRejectsUnusableAreas(t *testing.T) {
+	cases := map[string]string{
+		"not kebab-case": "Release Notes",
+		"path traversal": "../escape",
+		"reserved index": "index",
+		"leading hyphen": "-releases",
+	}
+	for label, area := range cases {
+		s, _ := addScope(t)
+		var out bytes.Buffer
+		req := AddRequest{Title: "A rule", Note: "Body.", Area: area, Triggers: []string{"whenever"}}
+		if err := Add(s, req, &out); err == nil {
+			t.Errorf("%s (%q): expected an error", label, area)
+		}
+	}
+}
+
+// index.md is generated; a rule of that name would be silently clobbered by sync.
+func TestNewRejectsTheGeneratedIndexName(t *testing.T) {
+	s, _ := addScope(t)
+	var out bytes.Buffer
+	if err := New(s, indexFilename[:len(indexFilename)-3], &out); err == nil {
+		t.Error("hydra new index must be refused — sync would overwrite it")
 	}
 }

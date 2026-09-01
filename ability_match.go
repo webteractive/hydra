@@ -197,6 +197,7 @@ func renderAbilityMatchText(out io.Writer, phrase string, matches []AbilityMatch
 		fmt.Fprintln(out, "An agent could still select semantically by description, but nothing here")
 		fmt.Fprintln(out, "guarantees it. To make this phrase deterministic, add it to the ability's")
 		fmt.Fprintln(out, "triggers: list, then run hydra ability sync.")
+		fmt.Fprintln(out, "\nFor agents and scripts: hydra ability match <phrase> --json")
 		return
 	}
 
@@ -221,4 +222,5 @@ func renderAbilityMatchText(out io.Writer, phrase string, matches []AbilityMatch
 		fmt.Fprintln(out, "\nOverlapping triggers are not an error: the agent picks by description and")
 		fmt.Fprintln(out, "conversation context. Narrow a trigger only if the wrong one keeps winning.")
 	}
+	fmt.Fprintln(out, "\nFor agents and scripts: hydra ability match <phrase> --json")
 }

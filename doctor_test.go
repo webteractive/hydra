@@ -136,12 +136,18 @@ func TestRenderDoctorText(t *testing.T) {
 		},
 	}
 	var out bytes.Buffer
-	renderDoctorText(rep, &out)
+	renderDoctorText(&out, rep, "hydra doctor (project: /x/.hydra)", "hydra doctor --json")
 	got := out.String()
 	if !strings.Contains(got, "✓") || !strings.Contains(got, "!") {
 		t.Errorf("expected pass and warn glyphs: %s", got)
 	}
 	if !strings.Contains(got, "run 'hydra sync'") {
 		t.Errorf("detail not rendered: %s", got)
+	}
+	if !strings.Contains(got, "hydra doctor (project: /x/.hydra)") {
+		t.Errorf("header not rendered: %s", got)
+	}
+	if !strings.Contains(got, "For agents and scripts: hydra doctor --json") {
+		t.Errorf("humans should be pointed at the machine-readable output: %s", got)
 	}
 }

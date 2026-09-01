@@ -97,26 +97,7 @@ func newAbilityDoctorCmd(out io.Writer) *cobra.Command {
 				}
 				fmt.Fprintln(out, string(data))
 			} else {
-				fmt.Fprintln(out, abilityDoctorSummary(rep))
-				for _, check := range rep.Checks {
-					glyph := "✓"
-					if !check.OK {
-						glyph = "✗"
-						if check.Severity == sevWarning {
-							glyph = "!"
-						}
-					}
-					line := fmt.Sprintf("  %s %s", glyph, check.Name)
-					if !check.OK && check.Detail != "" {
-						line += " — " + check.Detail
-					}
-					fmt.Fprintln(out, line)
-				}
-				if rep.OK {
-					fmt.Fprintln(out, "doctor: PASS")
-				} else {
-					fmt.Fprintln(out, "doctor: FAIL")
-				}
+				renderDoctorText(out, rep, abilityDoctorSummary(rep), "hydra ability doctor --json")
 			}
 			if !rep.OK {
 				return errors.New("")
@@ -124,6 +105,6 @@ func newAbilityDoctorCmd(out io.Writer) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().Bool("json", false, "output as JSON")
+	cmd.Flags().Bool("json", false, "emit machine-readable JSON for agents and scripts")
 	return cmd
 }

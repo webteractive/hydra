@@ -253,3 +253,54 @@ func TestHelpDoesNotDescribeAbilitiesAsLazyLoaded(t *testing.T) {
 	}
 	walk(root)
 }
+
+// Rule: point each audience at the other in the output itself, so nobody has to
+// guess the flag exists.
+func TestHumanOutputPointsAtTheJSONFlag(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	project := t.TempDir()
+	t.Chdir(project)
+
+	if _, err := runCLI(t, "init"); err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, filepath.Join(home, ".hydra", "abilities", "shipper", abilityFilename),
+		"---\nname: shipper\ndescription: Ship it.\ntriggers:\n  - ship the thing\n---\n\n# Shipper\n")
+	if _, err := runCLI(t, "ability", "sync"); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"list"}, "hydra list --json"},
+		{[]string{"list", "--global"}, "hydra list --global --json"},
+		{[]string{"doctor"}, "hydra doctor --json"},
+		{[]string{"doctor", "--global"}, "hydra doctor --global --json"},
+		{[]string{"ability", "list"}, "hydra ability list --json"},
+		{[]string{"ability", "doctor"}, "hydra ability doctor --json"},
+		{[]string{"ability", "match", "ship the thing"}, "hydra ability match"},
+	} {
+		out, _ := runCLI(t, tc.args...)
+		if !strings.Contains(out, tc.want) {
+			t.Errorf("`hydra %s` never mentions %q:\n%s", strings.Join(tc.args, " "), tc.want, out)
+		}
+	}
+}
+
+// Every --json flag should describe itself the same way.
+func TestJSONFlagsDescribeThemselvesConsistently(t *testing.T) {
+	const want = "emit machine-readable JSON for agents and scripts"
+	var walk func(c *cobra.Command, path string)
+	walk = func(c *cobra.Command, path string) {
+		if f := c.Flags().Lookup("json"); f != nil && f.Usage != want {
+			t.Errorf("%s --json: usage %q, want %q", path, f.Usage, want)
+		}
+		for _, sub := range c.Commands() {
+			walk(sub, path+" "+sub.Name())
+		}
+	}
+	walk(newRootCmd(io.Discard, io.Discard), "hydra")
+}

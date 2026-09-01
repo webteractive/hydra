@@ -75,11 +75,17 @@ func newListCmd(out io.Writer) *cobra.Command {
 	return cmd
 }
 
-func renderRuleListText(out io.Writer, s Scope, rules []RuleInfo) {
-	jsonCommand := "hydra list --json"
+// scopedJSONCommand names the machine-readable form of a scope-aware command,
+// preserving --global so the hint is copy-pasteable from where it is printed.
+func scopedJSONCommand(s Scope, name string) string {
 	if s.Global {
-		jsonCommand = "hydra list --global --json"
+		return "hydra " + name + " --global --json"
 	}
+	return "hydra " + name + " --json"
+}
+
+func renderRuleListText(out io.Writer, s Scope, rules []RuleInfo) {
+	jsonCommand := scopedJSONCommand(s, "list")
 
 	fmt.Fprintf(out, "Rules in %s scope (%d)\n", s.Label, len(rules))
 	if len(rules) == 0 {

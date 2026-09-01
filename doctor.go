@@ -132,8 +132,10 @@ func hasV01Artifacts(s Scope) bool {
 	return false
 }
 
-func renderDoctorText(r DoctorReport, out io.Writer) {
-	fmt.Fprintf(out, "hydra doctor (%s: %s)\n", r.Scope, r.Home)
+// renderDoctorText is the one doctor renderer. Both doctors print the same
+// shape, so the JSON pointer and the PASS/FAIL line cannot drift apart.
+func renderDoctorText(out io.Writer, r DoctorReport, header, jsonCommand string) {
+	fmt.Fprintln(out, header)
 	for _, c := range r.Checks {
 		glyph := "✓"
 		if !c.OK {
@@ -153,4 +155,5 @@ func renderDoctorText(r DoctorReport, out io.Writer) {
 	} else {
 		fmt.Fprintln(out, "doctor: FAIL")
 	}
+	fmt.Fprintf(out, "\nFor agents and scripts: %s\n", jsonCommand)
 }

@@ -134,7 +134,10 @@ func newAddCmd(out io.Writer) *cobra.Command {
 		Long: "Record a durable rule so the next agent or teammate inherits it.\n\n" +
 			"Give it at least one matcher (--glob, --command, --trigger) or --always,\n" +
 			"plus a short --title and a few-line --note. Initializes the library if\n" +
-			"it does not exist yet.",
+			"it does not exist yet.\n\n" +
+			"Rules covering the same area share a file. The area is inferred from the\n" +
+			"first --glob, else the first --command, else the title — which means\n" +
+			"argument order decides the filename. Pass --area to state it instead.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			title, _ := cmd.Flags().GetString("title")
@@ -143,6 +146,7 @@ func newAddCmd(out io.Writer) *cobra.Command {
 			globs, _ := cmd.Flags().GetStringArray("glob")
 			commands, _ := cmd.Flags().GetStringArray("command")
 			triggers, _ := cmd.Flags().GetStringArray("trigger")
+			area, _ := cmd.Flags().GetString("area")
 			s, err := scopeFromCmd(cmd)
 			if err != nil {
 				return err
@@ -150,6 +154,7 @@ func newAddCmd(out io.Writer) *cobra.Command {
 			return Add(s, AddRequest{
 				Title:    title,
 				Note:     note,
+				Area:     area,
 				Always:   always,
 				Paths:    globs,
 				Commands: commands,
@@ -163,6 +168,7 @@ func newAddCmd(out io.Writer) *cobra.Command {
 	cmd.Flags().StringArray("glob", nil, "file glob the rule applies to (repeatable)")
 	cmd.Flags().StringArray("command", nil, "command prefix the rule applies to (repeatable)")
 	cmd.Flags().StringArray("trigger", nil, "situation the rule applies to, in prose (repeatable)")
+	cmd.Flags().String("area", "", "file to group this rule under, kebab-case (default: inferred from the first --glob, --command, or the title)")
 	return cmd
 }
 
@@ -189,7 +195,9 @@ func newDoctorCmd(out io.Writer) *cobra.Command {
 				}
 				fmt.Fprintln(out, string(b))
 			} else {
-				renderDoctorText(rep, out)
+				renderDoctorText(out, rep,
+					fmt.Sprintf("hydra doctor (%s: %s)", rep.Scope, rep.Home),
+					scopedJSONCommand(s, "doctor"))
 			}
 			if !rep.OK {
 				// Return an empty-message error so main exits 1 without
@@ -199,6 +207,6 @@ func newDoctorCmd(out io.Writer) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().Bool("json", false, "output as JSON")
+	cmd.Flags().Bool("json", false, "emit machine-readable JSON for agents and scripts")
 	return cmd
 }
