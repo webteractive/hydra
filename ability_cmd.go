@@ -26,8 +26,8 @@ func newAbilityCmd(out io.Writer) *cobra.Command {
 			"instruction file, and install the $ability router skill for each harness.\n\n" +
 			"Never creates or rewrites an authored ability bundle.",
 		Args: cobra.NoArgs,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			s, err := abilityScopeFromCmd()
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			s, err := abilityScopeFromCmd(cmd)
 			if err != nil {
 				return err
 			}
@@ -43,8 +43,8 @@ func newAbilityCmd(out io.Writer) *cobra.Command {
 			"Run this after editing an ABILITY.md by hand — nothing you author takes\n" +
 			"effect until the generated wiring is refreshed.",
 		Args: cobra.NoArgs,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			s, err := abilityScopeFromCmd()
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			s, err := abilityScopeFromCmd(cmd)
 			if err != nil {
 				return err
 			}
@@ -60,8 +60,8 @@ func newAbilityCmd(out io.Writer) *cobra.Command {
 			"Edit its description and triggers before relying on it, and check a phrase\n" +
 			"reaches it with `hydra ability match`.",
 		Args: cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
-			s, err := abilityScopeFromCmd()
+		RunE: func(cmd *cobra.Command, args []string) error {
+			s, err := abilityScopeFromCmd(cmd)
 			if err != nil {
 				return err
 			}
@@ -85,7 +85,7 @@ func newAbilityDoctorCmd(out io.Writer) *cobra.Command {
 			"Exits non-zero when a check fails. Use --json for machine-readable output.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			s, err := abilityScopeFromCmd()
+			s, err := abilityScopeFromCmd(cmd)
 			if err != nil {
 				return err
 			}

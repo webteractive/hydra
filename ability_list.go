@@ -41,7 +41,7 @@ func newAbilityListCmd(out io.Writer) *cobra.Command {
 			"Use --json for stable, machine-readable output intended for agents and scripts.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			s, err := abilityScopeFromCmd()
+			s, err := abilityScopeFromCmd(cmd)
 			if err != nil {
 				return err
 			}

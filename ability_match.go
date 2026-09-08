@@ -158,7 +158,7 @@ func newAbilityMatchCmd(out io.Writer) *cobra.Command {
 			"Exits non-zero when nothing matches deterministically.",
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			s, err := abilityScopeFromCmd()
+			s, err := abilityScopeFromCmd(cmd)
 			if err != nil {
 				return err
 			}

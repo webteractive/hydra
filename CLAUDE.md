@@ -30,14 +30,24 @@ invoked through the generated `$ability` router. Commands: `init`, `sync`, `add`
 
 ## Layout
 - `main.go` — cobra wiring: root command, subcommands, the `--global` persistent flag.
-- `scope.go` — `Scope` + `ResolveScope`. Project scope renders relative refs; global
-  renders absolute ones, because `~/.claude/CLAUDE.md` loads from any directory.
+- `scope.go` — `Scope` + `ResolveScope`/`ResolveScopeIn`. Project scope renders relative
+  refs; global renders absolute ones, because `~/.claude/CLAUDE.md` loads from any
+  directory. Global scope also carries `GlobalHome`, which project scope holds too so
+  `init` can wire abilities.
+- `hydra_home.go` — resolves where the global library lives: `--hydra-home`, else
+  `$HYDRA_HOME`, else `~/.hydra`. Overrides must be absolute; a relative one would
+  scaffold a *global* library inside the current repository.
 - `rule.go` — the `Rule` model and YAML frontmatter parsing.
 - `render.go` — the index table and the managed block.
 - `block.go` — sentinel splicing (`<!-- hydra:rules:start/end -->`), replace-in-place.
 - `detect.go` — which agent instruction files exist at this scope.
 - `init.go` / `sync.go` / `add.go` / `new.go` / `list.go` / `doctor.go` — one command each.
+- `relocate.go` — moves the global library and rewrites the blocks that name it. Move
+  first, rewire second: a failed rewire leaves the files safe and names the one command
+  that finishes the job. Falls back to copy-then-remove on `EXDEV`, so a home directory
+  and a dotfiles repository on separate volumes still work.
 - `ability.go` / `ability_scope.go` — ability metadata, validation, and the global scope.
+  Abilities are always global, so `--hydra-home` moves them with or without `--global`.
 - `ability_match.go` — offline phrase resolution (`hydra ability match`), mirroring the
   name-then-trigger contract the discovery block gives the agent.
 - `ability_render.go` / `ability_harness.go` — external catalog, discovery block, and
@@ -56,6 +66,18 @@ invoked through the generated `$ability` router. Commands: `init`, `sync`, `add`
 - Stdlib + cobra + `gopkg.in/yaml.v3` only — keep the dependency surface minimal.
 - **No MCP.** hydra is CLI-only by design; `hydra add` records rules and
   `hydra ability new` scaffolds authored ability bundles.
+- **Only the library moves.** `HYDRA_HOME` relocates `rules/` and `abilities/`; `Scope.Base`
+  stays the real home directory, because `detect.go` finds `~/.claude/CLAUDE.md` through it.
+  Project scope ignores the override outright — a project rule travels with its repository.
+- **hydra never edits a shell profile.** `relocate` moves the library and prints the
+  `export` line; making it stick is the user's call, in whichever profile is theirs.
+- **No config file, and no `hydra home` command.** Where the library lives is answered by
+  resolution alone — `--hydra-home`, else `$HYDRA_HOME`, else `~/.hydra` — so there is no
+  stored setting that can disagree with the environment. Both were considered and declined:
+  a pointer file inside the directory it configures is a bootstrap problem, one outside it
+  is unversioned state on a single machine, and `hydra home` without one is a read-only
+  echo of rules `doctor` already reports (it names the path *and* its source). Reach for a
+  `--home` flag on an existing command before adding either back.
 - **Never auto-commit or push.** The git diff is the review gate; ask before `git commit`.
 - Releases are cut by tagging `vX.Y.Z` and pushing the tag — goreleaser builds the binaries.
 

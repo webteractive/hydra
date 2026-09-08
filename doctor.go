@@ -21,10 +21,13 @@ type DoctorCheck struct {
 }
 
 type DoctorReport struct {
-	Scope  string        `json:"scope"`
-	Home   string        `json:"home"`
-	OK     bool          `json:"ok"`
-	Checks []DoctorCheck `json:"checks"`
+	Scope string `json:"scope"`
+	Home  string `json:"home"`
+	// HomeSource names what put the library where it is — only meaningful for
+	// the global scope, where an override can move it.
+	HomeSource string        `json:"home_source,omitempty"`
+	OK         bool          `json:"ok"`
+	Checks     []DoctorCheck `json:"checks"`
 }
 
 // Doctor inspects a scope and returns a structured report. It performs no output
@@ -32,6 +35,10 @@ type DoctorReport struct {
 // stale index reports honestly without turning the exit code red.
 func Doctor(s Scope) DoctorReport {
 	rep := DoctorReport{Scope: s.Label, Home: s.Home, OK: true}
+	// Only the global library can move, so only it has a source worth naming.
+	if s.Global {
+		rep.HomeSource = s.GlobalHomeSource
+	}
 	add := func(name string, ok bool, severity, detail string) {
 		rep.Checks = append(rep.Checks, DoctorCheck{Name: name, OK: ok, Severity: severity, Detail: detail})
 		if !ok && severity == sevError {
@@ -130,6 +137,16 @@ func hasV01Artifacts(s Scope) bool {
 		}
 	}
 	return false
+}
+
+// doctorHome renders the library path, naming what put it there when that was
+// something other than the default. An override that has silently stopped
+// applying is the failure this makes visible.
+func doctorHome(r DoctorReport) string {
+	if r.HomeSource == "" || r.HomeSource == hydraHomeSourceDefault {
+		return r.Home
+	}
+	return r.Home + " via " + r.HomeSource
 }
 
 // renderDoctorText is the one doctor renderer. Both doctors print the same

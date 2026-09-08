@@ -124,3 +124,45 @@ func TestParseAbilityRejectsUnusableTriggers(t *testing.T) {
 		}
 	}
 }
+
+func TestResolveAbilityScopeInMovesTheCatalog(t *testing.T) {
+	s := ResolveAbilityScopeIn("/home/u", "/srv/library")
+	if s.HydraHome != "/srv/library" {
+		t.Errorf("HydraHome = %s want /srv/library", s.HydraHome)
+	}
+	if s.AbilitiesDir != "/srv/library/abilities" {
+		t.Errorf("AbilitiesDir = %s want /srv/library/abilities", s.AbilitiesDir)
+	}
+	if s.UserHome != "/home/u" {
+		t.Errorf("UserHome = %s want /home/u", s.UserHome)
+	}
+}
+
+// init resolves the ability scope from the rule scope, so an override passed
+// for rules has to reach abilities too — including from a project scope, where
+// the rules library itself is not moving.
+func TestAbilityScopeFromRuleScopeFollowsTheOverride(t *testing.T) {
+	for _, global := range []bool{true, false} {
+		as, err := abilityScopeFromRuleScope(ResolveScopeIn(global, "/work/app", "/home/u", "/srv/library"))
+		if err != nil {
+			t.Fatalf("global=%v: unexpected error: %v", global, err)
+		}
+		if as.AbilitiesDir != "/srv/library/abilities" {
+			t.Errorf("global=%v: AbilitiesDir = %s want /srv/library/abilities", global, as.AbilitiesDir)
+		}
+	}
+}
+
+// AbilityScope.UserHome drives the harness paths (~/.claude/CLAUDE.md and the
+// routers), not just the catalog. An override says where the library lives; it
+// says nothing about where the home directory is, so a missing $HOME must still
+// be an error rather than a scope that writes to /.claude.
+func TestAbilityScopeFromRuleScopeStillNeedsAHomeDirectory(t *testing.T) {
+	t.Setenv("HOME", "")
+	s := ResolveScopeIn(false, "/work/app", "", "/srv/library")
+
+	as, err := abilityScopeFromRuleScope(s)
+	if err == nil {
+		t.Fatalf("expected an error with no home directory; got UserHome=%q", as.UserHome)
+	}
+}

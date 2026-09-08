@@ -9,7 +9,7 @@ import (
 )
 
 func AbilityDoctor(s AbilityScope) DoctorReport {
-	rep := DoctorReport{Scope: "global abilities", Home: s.HydraHome, OK: true}
+	rep := DoctorReport{Scope: "global abilities", Home: s.HydraHome, HomeSource: s.HydraHomeSource, OK: true}
 	add := func(name string, ok bool, severity, detail string) {
 		rep.Checks = append(rep.Checks, DoctorCheck{Name: name, OK: ok, Severity: severity, Detail: detail})
 		if !ok && severity == sevError {
@@ -102,5 +102,5 @@ func AbilityDoctor(s AbilityScope) DoctorReport {
 }
 
 func abilityDoctorSummary(rep DoctorReport) string {
-	return fmt.Sprintf("hydra ability doctor (%s)", rep.Home)
+	return fmt.Sprintf("hydra ability doctor (%s)", doctorHome(rep))
 }

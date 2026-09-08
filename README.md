@@ -39,6 +39,55 @@ Abilities are always global under `~/.hydra/abilities/`. A normal `hydra init` e
 them for fresh installations; existing installations can opt in with
 `hydra ability init`.
 
+### Moving the global library
+
+`~/.hydra` is the default, not a requirement. Point `HYDRA_HOME` at an absolute path —
+somewhere version-controlled, say — and the global rules and abilities libraries both
+move there:
+
+```bash
+export HYDRA_HOME="$HOME/dotfiles/hydra"   # holds rules/ and abilities/
+```
+
+Only the library moves. The managed blocks stay in `~/.claude/CLAUDE.md` and
+`~/.codex/AGENTS.md`, where the agents look for them; they simply reference the new
+location. Project rules are unaffected — `.hydra/rules/` stays in the project, because a
+project rule is meant to travel with its repository.
+
+`--hydra-home <path>` overrides the variable for a single run, which is mainly useful for
+probing another library without touching your environment. Both must be absolute:
+resolving a relative path against the working directory would scaffold a *global* library
+inside whatever repository happened to be current.
+
+To move a library you already have, use `hydra relocate` rather than `mv` — it moves the
+directory *and* rewrites the managed blocks, which hold absolute paths into the directory
+you are about to move:
+
+```
+$ hydra relocate ~/dotfiles/hydra
+moved /Users/you/.hydra -> /Users/you/dotfiles/hydra
+indexed 7 rule(s) → 1 target(s)
+indexed 4 ability(s) → 2 harness(es)
+
+Add this to your shell profile to make it stick:
+  export HYDRA_HOME="/Users/you/dotfiles/hydra"
+```
+
+It refuses a destination that already holds anything, and copies across filesystems when
+rename cannot (a home directory and a dotfiles repository on separate volumes). The
+destination may be relative — unlike `HYDRA_HOME`, it was typed from a known directory.
+Setting the variable is the one part it cannot do for you, so it prints the line to add.
+
+Because global blocks embed absolute paths, a `hydra sync` run **without** the variable
+set would rewrite them back to `~/.hydra`. `hydra doctor` names the library it is reading
+and what put it there, so that is visible rather than mysterious:
+
+```
+hydra doctor (global: /Users/you/dotfiles/hydra via HYDRA_HOME)
+```
+
+Scripts get the same two facts as `home` and `home_source` in `--json`.
+
 ## Commands
 
 | Command | Description |
@@ -49,6 +98,7 @@ them for fresh installations; existing installations can opt in with
 | `hydra new <name>` | Scaffold a blank rule for hand-editing. |
 | `hydra list [--json]` | Show labeled rule details for people; use `--json` for agents and scripts. |
 | `hydra doctor [--json]` | Check that everything is wired up. |
+| `hydra relocate <path>` | Move the global library and rewrite every managed block. |
 | `hydra ability init` | Initialize the global abilities catalog and harness routers. |
 | `hydra ability sync` | Validate abilities and refresh generated wiring. |
 | `hydra ability new <name>` | Scaffold `~/.hydra/abilities/<name>/ABILITY.md`. |
@@ -56,6 +106,8 @@ them for fresh installations; existing installations can opt in with
 | `hydra ability match <phrase>` | Check which ability a phrase would invoke. Exits non-zero when nothing matches. |
 | `hydra ability doctor [--json]` | Check the global catalog, blocks, and routers. |
 | `hydra self-update` | Update to the latest release. |
+
+Every command also takes `--hydra-home <path>`, the single-run form of `HYDRA_HOME`.
 
 ## How it works
 

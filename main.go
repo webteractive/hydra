@@ -54,6 +54,7 @@ func newRootCmd(out, errw io.Writer) *cobra.Command {
 	root.SetVersionTemplate(fmt.Sprintf(versionFormat, "{{.Version}}"))
 
 	root.PersistentFlags().Bool("global", false, "operate on the global scope instead of the current project")
+	root.PersistentFlags().String(hydraHomeFlagName, "", "absolute path to the global hydra library for this run (default $"+hydraHomeEnv+", else ~/.hydra)")
 
 	root.AddCommand(&cobra.Command{
 		Use:   "init",
@@ -62,7 +63,9 @@ func newRootCmd(out, errw io.Writer) *cobra.Command {
 			"agent instruction file it detects, then ensure the global ability system is\n" +
 			"wired too.\n\n" +
 			"Idempotent: authored rules and abilities are never rewritten. Also cleans up\n" +
-			"artifacts hydra no longer owns. Use --global for ~/.hydra/rules.",
+			"artifacts hydra no longer owns.\n\n" +
+			"Use --global for the global library, ~/.hydra/rules by default and\n" +
+			"$HYDRA_HOME/rules when that is set.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			s, err := scopeFromCmd(cmd)
@@ -105,6 +108,34 @@ func newRootCmd(out, errw io.Writer) *cobra.Command {
 				return err
 			}
 			return New(s, args[0], out)
+		},
+	})
+
+	root.AddCommand(&cobra.Command{
+		Use:   "relocate <path>",
+		Short: "Move the global library somewhere else",
+		Long: "Move the global rules and abilities libraries to <path> and rewrite every\n" +
+			"managed block so it names the new location.\n\n" +
+			"Always operates on the global library — project rules stay in their project,\n" +
+			"which is the point of the scope. The source is the library hydra would read\n" +
+			"now: --hydra-home, else $" + hydraHomeEnv + ", else ~/.hydra.\n\n" +
+			"Refuses a destination that already holds anything. Since $" + hydraHomeEnv + " lives\n" +
+			"in your shell profile, the last thing it prints is the line to add there.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			s, err := globalScopeFromCmd(cmd)
+			if err != nil {
+				return err
+			}
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("cannot resolve the current directory: %w", err)
+			}
+			dest, err := resolveRelocateDest(args[0], cwd, s.UserHome)
+			if err != nil {
+				return err
+			}
+			return Relocate(s, dest, out)
 		},
 	})
 
@@ -196,7 +227,7 @@ func newDoctorCmd(out io.Writer) *cobra.Command {
 				fmt.Fprintln(out, string(b))
 			} else {
 				renderDoctorText(out, rep,
-					fmt.Sprintf("hydra doctor (%s: %s)", rep.Scope, rep.Home),
+					fmt.Sprintf("hydra doctor (%s: %s)", rep.Scope, doctorHome(rep)),
 					scopedJSONCommand(s, "doctor"))
 			}
 			if !rep.OK {

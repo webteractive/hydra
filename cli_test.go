@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -303,4 +304,363 @@ func TestJSONFlagsDescribeThemselvesConsistently(t *testing.T) {
 		}
 	}
 	walk(newRootCmd(io.Discard, io.Discard), "hydra")
+}
+
+// HYDRA_HOME relocates the global library. The instruction file it wires must
+// stay in the home directory, since that is where the agents look for it.
+func TestRunGlobalScopeHonorsHydraHomeEnv(t *testing.T) {
+	tmp := t.TempDir()
+	home := filepath.Join(tmp, "home")
+	library := filepath.Join(tmp, "dotfiles", "hydra")
+	t.Chdir(tmp)
+	t.Setenv("HOME", home)
+	t.Setenv(hydraHomeEnv, library)
+
+	if _, err := runCLI(t, "init", "--global"); err != nil {
+		t.Fatal(err)
+	}
+	if !isDir(filepath.Join(library, "rules")) {
+		t.Errorf("rules library not created at %s", library)
+	}
+	if exists(filepath.Join(home, ".hydra")) {
+		t.Error("the default library must not be created when HYDRA_HOME is set")
+	}
+	got := readFile(t, filepath.Join(home, ".claude", "CLAUDE.md"))
+	if !strings.Contains(got, filepath.Join(library, "rules")) {
+		t.Errorf("global block should reference the relocated library:\n%s", got)
+	}
+	if strings.Contains(got, filepath.Join(home, ".hydra")) {
+		t.Errorf("global block still references the default library:\n%s", got)
+	}
+}
+
+func TestRunGlobalScopeHonorsHydraHomeFlag(t *testing.T) {
+	tmp := t.TempDir()
+	home := filepath.Join(tmp, "home")
+	library := filepath.Join(tmp, "elsewhere")
+	t.Chdir(tmp)
+	t.Setenv("HOME", home)
+
+	if _, err := runCLI(t, "init", "--global", "--hydra-home", library); err != nil {
+		t.Fatal(err)
+	}
+	if !isDir(filepath.Join(library, "rules")) {
+		t.Errorf("rules library not created at %s", library)
+	}
+}
+
+func TestRunHydraHomeFlagBeatsTheEnvironment(t *testing.T) {
+	tmp := t.TempDir()
+	home := filepath.Join(tmp, "home")
+	t.Chdir(tmp)
+	t.Setenv("HOME", home)
+	t.Setenv(hydraHomeEnv, filepath.Join(tmp, "from-env"))
+
+	flagged := filepath.Join(tmp, "from-flag")
+	if _, err := runCLI(t, "init", "--global", "--hydra-home", flagged); err != nil {
+		t.Fatal(err)
+	}
+	if !isDir(filepath.Join(flagged, "rules")) {
+		t.Errorf("library not created at the flagged path %s", flagged)
+	}
+	if exists(filepath.Join(tmp, "from-env")) {
+		t.Error("the flag must win over HYDRA_HOME")
+	}
+}
+
+// A relative override would scaffold a global library inside the current
+// repository, so it fails loudly rather than guessing.
+func TestRunRejectsRelativeHydraHome(t *testing.T) {
+	tmp := t.TempDir()
+	t.Chdir(tmp)
+	t.Setenv("HOME", filepath.Join(tmp, "home"))
+	t.Setenv(hydraHomeEnv, "library")
+
+	out, err := runCLI(t, "init", "--global")
+	if err == nil {
+		t.Fatalf("expected an error for a relative HYDRA_HOME; out=%q", out)
+	}
+	if exists(filepath.Join(tmp, "library")) {
+		t.Error("a rejected HYDRA_HOME must not scaffold into the current directory")
+	}
+}
+
+// A project rule travels with its repository; nothing in the environment
+// should be able to move it out.
+func TestRunProjectScopeIgnoresHydraHome(t *testing.T) {
+	tmp := t.TempDir()
+	project := filepath.Join(tmp, "app")
+	mustWrite(t, filepath.Join(project, "keep"), "")
+	t.Chdir(project)
+	t.Setenv("HOME", filepath.Join(tmp, "home"))
+	t.Setenv(hydraHomeEnv, filepath.Join(tmp, "dotfiles", "hydra"))
+
+	if _, err := runCLI(t, "init"); err != nil {
+		t.Fatal(err)
+	}
+	if !isDir(filepath.Join(project, ".hydra", "rules")) {
+		t.Error("project rules must stay in the project")
+	}
+	if isDir(filepath.Join(tmp, "dotfiles", "hydra", "rules")) {
+		t.Error("HYDRA_HOME must not move the project rules library")
+	}
+}
+
+// Abilities live in the same library, so they follow it — including from a
+// project scope, which is where `hydra init` wires them from.
+func TestRunAbilitiesFollowHydraHome(t *testing.T) {
+	tmp := t.TempDir()
+	home := filepath.Join(tmp, "home")
+	library := filepath.Join(tmp, "dotfiles", "hydra")
+	t.Chdir(tmp)
+	t.Setenv("HOME", home)
+	t.Setenv(hydraHomeEnv, library)
+
+	if _, err := runCLI(t, "ability", "init"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runCLI(t, "ability", "new", "testing-notes"); err != nil {
+		t.Fatal(err)
+	}
+	if !exists(filepath.Join(library, "abilities", "testing-notes", abilityFilename)) {
+		t.Errorf("ability not scaffolded under %s", library)
+	}
+	if exists(filepath.Join(home, ".hydra")) {
+		t.Error("the default library must not be created when HYDRA_HOME is set")
+	}
+	if out, err := runCLI(t, "ability", "list"); err != nil || !strings.Contains(out, "testing-notes") {
+		t.Errorf("ability list: out=%q err=%v", out, err)
+	}
+}
+
+// An override that silently stopped applying would rewrite every managed block
+// back to the default library, so doctor has to say where it is reading from.
+func TestDoctorReportsWhereTheLibraryCameFrom(t *testing.T) {
+	tmp := t.TempDir()
+	home := filepath.Join(tmp, "home")
+	library := filepath.Join(tmp, "dotfiles", "hydra")
+	t.Chdir(tmp)
+	t.Setenv("HOME", home)
+	t.Setenv(hydraHomeEnv, library)
+
+	if _, err := runCLI(t, "init", "--global"); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := runCLI(t, "doctor", "--global")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, library) || !strings.Contains(out, hydraHomeEnv) {
+		t.Errorf("doctor should name the library and its source:\n%s", out)
+	}
+
+	out, err = runCLI(t, "doctor", "--global", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rep DoctorReport
+	if err := json.Unmarshal([]byte(out), &rep); err != nil {
+		t.Fatal(err)
+	}
+	if rep.HomeSource != hydraHomeSourceEnv {
+		t.Errorf("home_source = %q want %q", rep.HomeSource, hydraHomeSourceEnv)
+	}
+	if rep.Home != library {
+		t.Errorf("home = %q want %q", rep.Home, library)
+	}
+}
+
+func TestDoctorReportsTheDefaultLibrarySource(t *testing.T) {
+	tmp := t.TempDir()
+	home := filepath.Join(tmp, "home")
+	t.Chdir(tmp)
+	t.Setenv("HOME", home)
+
+	if _, err := runCLI(t, "init", "--global"); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runCLI(t, "doctor", "--global", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rep DoctorReport
+	if err := json.Unmarshal([]byte(out), &rep); err != nil {
+		t.Fatal(err)
+	}
+	if rep.HomeSource != hydraHomeSourceDefault {
+		t.Errorf("home_source = %q want %q", rep.HomeSource, hydraHomeSourceDefault)
+	}
+}
+
+// The rules library is not what "home source" describes in a project scope —
+// reporting HYDRA_HOME there would be a lie.
+func TestDoctorOmitsTheLibrarySourceForProjectScope(t *testing.T) {
+	tmp := t.TempDir()
+	t.Chdir(tmp)
+	t.Setenv("HOME", filepath.Join(tmp, "home"))
+	t.Setenv(hydraHomeEnv, filepath.Join(tmp, "dotfiles", "hydra"))
+
+	if _, err := runCLI(t, "init"); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runCLI(t, "doctor", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "home_source") {
+		t.Errorf("project doctor should not report a library source:\n%s", out)
+	}
+}
+
+func TestAbilityDoctorReportsWhereTheLibraryCameFrom(t *testing.T) {
+	tmp := t.TempDir()
+	library := filepath.Join(tmp, "dotfiles", "hydra")
+	t.Chdir(tmp)
+	t.Setenv("HOME", filepath.Join(tmp, "home"))
+	t.Setenv(hydraHomeEnv, library)
+
+	if _, err := runCLI(t, "ability", "init"); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runCLI(t, "ability", "doctor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, library) || !strings.Contains(out, hydraHomeEnv) {
+		t.Errorf("ability doctor should name the library and its source:\n%s", out)
+	}
+}
+
+func TestRunRelocateMovesTheGlobalLibrary(t *testing.T) {
+	tmp := t.TempDir()
+	home := filepath.Join(tmp, "home")
+	src := filepath.Join(tmp, "src")
+	dest := filepath.Join(tmp, "dotfiles", "hydra")
+	t.Chdir(tmp)
+	t.Setenv("HOME", home)
+	t.Setenv(hydraHomeEnv, src)
+
+	if _, err := runCLI(t, "init", "--global"); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runCLI(t, "relocate", dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !isDir(filepath.Join(dest, "rules")) {
+		t.Errorf("library did not move to %s", dest)
+	}
+	if exists(src) {
+		t.Error("the source library should be gone")
+	}
+	if !strings.Contains(out, `export `+hydraHomeEnv+`="`+dest+`"`) {
+		t.Errorf("missing the export line:\n%s", out)
+	}
+	block := readFile(t, filepath.Join(home, ".claude", "CLAUDE.md"))
+	if !strings.Contains(block, filepath.Join(dest, "rules")) || strings.Contains(block, src) {
+		t.Errorf("block not rewritten to the new library:\n%s", block)
+	}
+
+	// The moved library is now reachable by pointing the resolver at it.
+	if _, err := runCLI(t, "doctor", "--global", "--hydra-home", dest); err != nil {
+		t.Fatalf("doctor should pass against the relocated library: %v", err)
+	}
+}
+
+// relocate is inherently global; the default source is ~/.hydra with nothing set.
+func TestRunRelocateDefaultsToTheDefaultLibrary(t *testing.T) {
+	tmp := t.TempDir()
+	home := filepath.Join(tmp, "home")
+	dest := filepath.Join(tmp, "elsewhere")
+	t.Chdir(tmp)
+	t.Setenv("HOME", home)
+
+	if _, err := runCLI(t, "init", "--global"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runCLI(t, "relocate", dest); err != nil {
+		t.Fatal(err)
+	}
+	if !isDir(filepath.Join(dest, "rules")) {
+		t.Errorf("library did not move to %s", dest)
+	}
+	if exists(filepath.Join(home, ".hydra")) {
+		t.Error("the default library should be gone after relocating")
+	}
+}
+
+// A path typed at a prompt resolves against the working directory, the way mv
+// and cp behave — unlike HYDRA_HOME, which is refused when relative.
+func TestRunRelocateResolvesARelativeDestination(t *testing.T) {
+	tmp := t.TempDir()
+	home := filepath.Join(tmp, "home")
+	work := filepath.Join(tmp, "work")
+	if err := os.MkdirAll(work, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(work)
+	t.Setenv("HOME", home)
+
+	if _, err := runCLI(t, "init", "--global"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runCLI(t, "relocate", "library"); err != nil {
+		t.Fatal(err)
+	}
+	if !isDir(filepath.Join(work, "library", "rules")) {
+		t.Error("relative destination did not resolve against the working directory")
+	}
+}
+
+func TestRunRelocateRequiresADestination(t *testing.T) {
+	tmp := t.TempDir()
+	t.Chdir(tmp)
+	t.Setenv("HOME", filepath.Join(tmp, "home"))
+
+	if _, err := runCLI(t, "relocate"); err == nil {
+		t.Error("relocate without a destination should fail")
+	}
+}
+
+// Ability commands are always global, so --hydra-home applies to them without
+// --global. Each subcommand is checked because they resolve their scope
+// independently.
+func TestRunAbilityCommandsHonorTheHydraHomeFlag(t *testing.T) {
+	tmp := t.TempDir()
+	home := filepath.Join(tmp, "home")
+	library := filepath.Join(tmp, "library")
+	t.Chdir(tmp)
+	t.Setenv("HOME", home)
+
+	if _, err := runCLI(t, "ability", "init", "--hydra-home", library); err != nil {
+		t.Fatal(err)
+	}
+	if !isDir(filepath.Join(library, "abilities")) {
+		t.Fatalf("ability init ignored --hydra-home; nothing at %s", library)
+	}
+	if exists(filepath.Join(home, ".hydra")) {
+		t.Error("ability init fell back to the default library")
+	}
+
+	if _, err := runCLI(t, "ability", "new", "shipper", "--hydra-home", library); err != nil {
+		t.Fatal(err)
+	}
+	if !exists(filepath.Join(library, "abilities", "shipper", abilityFilename)) {
+		t.Error("ability new ignored --hydra-home")
+	}
+	if _, err := runCLI(t, "ability", "sync", "--hydra-home", library); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runCLI(t, "ability", "list", "--hydra-home", library)
+	if err != nil || !strings.Contains(out, "shipper") {
+		t.Errorf("ability list ignored --hydra-home: out=%q err=%v", out, err)
+	}
+	out, err = runCLI(t, "ability", "doctor", "--hydra-home", library)
+	if err != nil || !strings.Contains(out, library) {
+		t.Errorf("ability doctor ignored --hydra-home: out=%q err=%v", out, err)
+	}
+	if _, err := runCLI(t, "ability", "match", "shipper", "--hydra-home", library); err != nil {
+		t.Errorf("ability match ignored --hydra-home: %v", err)
+	}
 }
