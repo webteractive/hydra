@@ -120,7 +120,7 @@ func TestRenderAbilityRouterPromptsWithTheHarnessPicker(t *testing.T) {
 		if !ok {
 			t.Fatalf("no picker expectation for harness %s", harness.Name)
 		}
-		want = append(want, "Do not answer with a list", "`More…`", "free-text answer", "is not available in this session", "no abilities", "`Cancel`")
+		want = append(want, "Do not just print the names", "`More…`", "free-text answer", "is not available in this session", "no abilities", "`Cancel`")
 		for _, w := range want {
 			if !strings.Contains(got, w) {
 				t.Errorf("%s router missing %q:\n%s", harness.Name, w, got)

@@ -114,7 +114,7 @@ func RenderAbilityRouter(s AbilityScope, harness AbilityHarness) string {
 			"- Follow the ability for the remainder of the task, subject to the user's instructions and\n"+
 			"  higher-priority agent instructions.\n\n"+
 			"## When no name is given\n\n"+
-			"Do not answer with a list. Read `%s` and ask the user to choose.\n\n"+
+			"Do not just print the names. Read `%s` and ask the user to choose.\n\n"+
 			"%s",
 		routerOwnedMarker, dir, index, renderAbilityPicker(harness.Picker),
 	)
@@ -128,8 +128,8 @@ func renderAbilityPicker(p AbilityPicker) string {
 	const fallback = "Present a numbered list of every ability name with its description, then stop\n" +
 		"  and wait for the user's reply. Accept either the number or the name.\n"
 	const common = "- If the index lists no abilities, say so, suggest `hydra ability new <name>`, and stop.\n"
-	const route = "- Route the chosen name as if it had been the first argument. If the user dismisses\n" +
-		"  the question, stop without loading anything.\n" +
+	const route = "- Route the chosen name as if it had been the first argument. If the user picks\n" +
+		"  `Cancel` or dismisses the question, stop without loading anything.\n" +
 		"- Take no other action until the user has chosen.\n"
 	if p.Tool == "" {
 		return common + "- " + fallback + route
