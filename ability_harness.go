@@ -11,6 +11,17 @@ type AbilityHarness struct {
 	Name            string `json:"name"`
 	InstructionPath string `json:"instruction_path"`
 	RouterPath      string `json:"router_path"`
+	// Picker is the harness's native selection prompt, which the router hands a
+	// bare `$ability` to instead of answering with a list the user has to retype.
+	Picker AbilityPicker `json:"-"`
+}
+
+// AbilityPicker names a harness's structured question tool and how many choices
+// one question may carry. Both tools append their own free-text answer, which is
+// how a user who already knows the name can type it without paging.
+type AbilityPicker struct {
+	Tool       string
+	MaxOptions int
 }
 
 // abilityHarnesses is the adapter registry. The Codex adapter uses the shared
@@ -22,11 +33,13 @@ func abilityHarnesses(s AbilityScope) []AbilityHarness {
 			Name:            "claude",
 			InstructionPath: filepath.Join(s.UserHome, ".claude", "CLAUDE.md"),
 			RouterPath:      filepath.Join(s.UserHome, ".claude", "skills", "ability", "SKILL.md"),
+			Picker:          AbilityPicker{Tool: "AskUserQuestion", MaxOptions: 4},
 		},
 		{
 			Name:            "codex",
 			InstructionPath: filepath.Join(s.UserHome, ".codex", "AGENTS.md"),
 			RouterPath:      filepath.Join(s.UserHome, ".agents", "skills", "ability", "SKILL.md"),
+			Picker:          AbilityPicker{Tool: "request_user_input", MaxOptions: 3},
 		},
 	}
 }

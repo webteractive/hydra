@@ -200,8 +200,12 @@ An exact ability-name match is decisive and suppresses trigger candidates, so
 name — that trigger can never fire. It also warns about abilities with no triggers.
 
 Hydra also installs one small native router skill for each detected supported harness.
-Use `$ability <name>` when you want deterministic, explicit loading. Hydra currently has
-adapters for Claude Code and Codex/Agent Skills.
+Use `$ability <name>` when you want deterministic, explicit loading. A bare `$ability`
+asks you to choose through the harness's own selection prompt (`AskUserQuestion` in
+Claude Code, `request_user_input` in Codex), paging with a `More…` option when the catalog
+is larger than one question holds; where that tool is unavailable it falls back to a
+numbered list and waits for your reply. Hydra currently has adapters for Claude Code and
+Codex/Agent Skills.
 
 Gemini was supported through v0.2 and has been removed. Cleanup follows the same scoping
 as the wiring: `hydra init` strips the rules block from that scope's `GEMINI.md`, while

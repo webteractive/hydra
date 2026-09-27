@@ -71,12 +71,11 @@ func AbilitySync(s AbilityScope, out io.Writer) error {
 		fmt.Fprintln(out, "warning: no global agent instruction files found — run 'hydra ability init' to create one")
 	}
 	block := RenderAbilityBlock(s, abilities)
-	router := RenderAbilityRouter(s)
 	for _, harness := range harnesses {
 		if err := SpliceManagedBlock(harness.InstructionPath, block, abilityBlockStart, abilityBlockEnd); err != nil {
 			return err
 		}
-		if err := writeAbilityRouter(harness.RouterPath, router); err != nil {
+		if err := writeAbilityRouter(harness.RouterPath, RenderAbilityRouter(s, harness)); err != nil {
 			return err
 		}
 	}

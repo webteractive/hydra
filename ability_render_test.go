@@ -98,11 +98,52 @@ func TestRenderAbilityBlockKeepsBodiesLazy(t *testing.T) {
 
 func TestRenderAbilityRouter(t *testing.T) {
 	s := ResolveAbilityScope("/home/user")
-	got := RenderAbilityRouter(s)
-	for _, want := range []string{routerOwnedMarker, "name: ability", s.AbilitiesDir, "exact ability name", "path separators"} {
+	for _, harness := range abilityHarnesses(s) {
+		got := RenderAbilityRouter(s, harness)
+		for _, want := range []string{routerOwnedMarker, "name: ability", s.AbilitiesDir, "exact ability name", "path separators"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("%s router missing %q:\n%s", harness.Name, want, got)
+			}
+		}
+	}
+}
+
+func TestRenderAbilityRouterPromptsWithTheHarnessPicker(t *testing.T) {
+	s := ResolveAbilityScope("/home/user")
+	cases := map[string][]string{
+		"claude": {"`AskUserQuestion`", "at most 4 options", "next 3 in index order"},
+		"codex":  {"`request_user_input`", "at most 3 options", "next 2 in index order"},
+	}
+	for _, harness := range abilityHarnesses(s) {
+		got := RenderAbilityRouter(s, harness)
+		want, ok := cases[harness.Name]
+		if !ok {
+			t.Fatalf("no picker expectation for harness %s", harness.Name)
+		}
+		want = append(want, "Do not answer with a list", "`More…`", "free-text answer", "is not available in this session", "no abilities", "`Cancel`")
+		for _, w := range want {
+			if !strings.Contains(got, w) {
+				t.Errorf("%s router missing %q:\n%s", harness.Name, w, got)
+			}
+		}
+		for other := range cases {
+			if other != harness.Name && strings.Contains(got, cases[other][0]) {
+				t.Errorf("%s router names %s's picker %s", harness.Name, other, cases[other][0])
+			}
+		}
+	}
+}
+
+func TestRenderAbilityRouterWithoutPickerStillAsks(t *testing.T) {
+	s := ResolveAbilityScope("/home/user")
+	got := RenderAbilityRouter(s, AbilityHarness{Name: "plain"})
+	for _, want := range []string{"numbered list", "wait for", "Take no other action until the user has chosen"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("router missing %q:\n%s", want, got)
 		}
+	}
+	if strings.Contains(got, "``") {
+		t.Errorf("router renders an empty tool name:\n%s", got)
 	}
 }
 

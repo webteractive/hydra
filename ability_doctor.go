@@ -74,7 +74,6 @@ func AbilityDoctor(s AbilityScope) DoctorReport {
 	harnesses := detectAbilityHarnesses(s)
 	add("at least one global instruction file detected", len(harnesses) > 0, sevWarning, "run 'hydra ability init'")
 	block := RenderAbilityBlock(s, abilities)
-	router := RenderAbilityRouter(s)
 	for _, harness := range harnesses {
 		add("abilities block current in "+harness.InstructionPath,
 			managedBlockMatches(harness.InstructionPath, block, abilityBlockStart, abilityBlockEnd),
@@ -94,7 +93,7 @@ func AbilityDoctor(s AbilityScope) DoctorReport {
 		add(harness.Name+" ability router is Hydra-owned", owned, sevError,
 			"refusing to overwrite user-authored skill at "+harness.RouterPath)
 		if owned {
-			add(harness.Name+" ability router is current", string(data) == router, sevWarning, "run 'hydra ability sync'")
+			add(harness.Name+" ability router is current", string(data) == RenderAbilityRouter(s, harness), sevWarning, "run 'hydra ability sync'")
 		}
 	}
 

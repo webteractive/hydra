@@ -52,7 +52,7 @@ func TestPreflightAbilityRoutersPreservesForeignSkill(t *testing.T) {
 		t.Error("foreign router was modified")
 	}
 
-	if err := os.WriteFile(harness.RouterPath, []byte(RenderAbilityRouter(s)), 0o644); err != nil {
+	if err := os.WriteFile(harness.RouterPath, []byte(RenderAbilityRouter(s, harness)), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := preflightAbilityRouters([]AbilityHarness{harness}); err != nil {

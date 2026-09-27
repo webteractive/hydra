@@ -94,15 +94,17 @@ func RenderAbilityBlock(s AbilityScope, abilities []Ability) string {
 	return b.String()
 }
 
-func RenderAbilityRouter(s AbilityScope) string {
+// RenderAbilityRouter writes one harness's `$ability` skill. The routing rules
+// are shared; only the bare-invocation branch differs, because it names the
+// harness's own selection tool and that tool's option limit.
+func RenderAbilityRouter(s AbilityScope, harness AbilityHarness) string {
 	dir := filepath.ToSlash(s.AbilitiesDir)
 	index := filepath.ToSlash(filepath.Join(s.AbilitiesDir, abilityIndexFile))
 	return fmt.Sprintf(
 		"---\nname: ability\n"+
-			"description: Load a named Hydra ability when the user invokes $ability <name>.\n---\n\n"+
+			"description: Load a named Hydra ability when the user invokes $ability <name>, or let them pick one when no name is given.\n---\n\n"+
 			"%s\n\n# Hydra ability router\n\n"+
 			"Use the first argument as an exact ability name.\n\n"+
-			"- If no name was provided, read `%s` and list the available names.\n"+
 			"- Accept only lowercase letters, digits, and hyphens. Reject path separators and traversal.\n"+
 			"- Resolve the ability to `%s/<name>/ABILITY.md`.\n"+
 			"- If that exact file does not exist, read the index and report the available exact names.\n"+
@@ -110,9 +112,41 @@ func RenderAbilityRouter(s AbilityScope) string {
 			"- Resolve every relative reference from that ability's directory and load supporting files\n"+
 			"  only when its instructions require them.\n"+
 			"- Follow the ability for the remainder of the task, subject to the user's instructions and\n"+
-			"  higher-priority agent instructions.\n",
-		routerOwnedMarker, index, dir,
+			"  higher-priority agent instructions.\n\n"+
+			"## When no name is given\n\n"+
+			"Do not answer with a list. Read `%s` and ask the user to choose.\n\n"+
+			"%s",
+		routerOwnedMarker, dir, index, renderAbilityPicker(harness.Picker),
 	)
+}
+
+// renderAbilityPicker is the bare-invocation branch. Both native tools refuse a
+// question with fewer than two options, so an empty or single-entry index is
+// handled before the tool is reached. With no picker the router still asks
+// rather than guesses, as a numbered list the user answers in chat.
+func renderAbilityPicker(p AbilityPicker) string {
+	const fallback = "Present a numbered list of every ability name with its description, then stop\n" +
+		"  and wait for the user's reply. Accept either the number or the name.\n"
+	const common = "- If the index lists no abilities, say so, suggest `hydra ability new <name>`, and stop.\n"
+	const route = "- Route the chosen name as if it had been the first argument. If the user dismisses\n" +
+		"  the question, stop without loading anything.\n" +
+		"- Take no other action until the user has chosen.\n"
+	if p.Tool == "" {
+		return common + "- " + fallback + route
+	}
+	return common + fmt.Sprintf(
+		"- Call the `%[1]s` tool with a single question, header \"Ability\". Each option's\n"+
+			"  label is an exact ability name and its description is the ability's description,\n"+
+			"  shortened to one line. With exactly one ability, pair it with a `Cancel` option.\n"+
+			"- A question takes at most %[2]d options. With %[2]d abilities or fewer, offer them all.\n"+
+			"  Otherwise offer the next %[3]d in index order plus a final option labelled `More…`, and\n"+
+			"  ask again with the following page whenever the user picks it. The last page wraps\n"+
+			"  back to the first.\n"+
+			"- The tool adds its own free-text answer. Treat what the user types there as an\n"+
+			"  ability name.\n"+
+			"- If `%[1]s` is not available in this session, fall back to chat.\n  %[4]s",
+		p.Tool, p.MaxOptions, p.MaxOptions-1, fallback,
+	) + route
 }
 
 func escapeAbilityCell(value string) string {
