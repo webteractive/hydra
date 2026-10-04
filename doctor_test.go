@@ -151,3 +151,57 @@ func TestRenderDoctorText(t *testing.T) {
 		t.Errorf("humans should be pointed at the machine-readable output: %s", got)
 	}
 }
+
+// Every failing check names the command that fixes it, scoped the way the
+// report was: a global report must say --global, or following it would touch
+// the wrong library.
+func TestDoctorFixCommandsAreScoped(t *testing.T) {
+	tmp := t.TempDir()
+	home := filepath.Join(tmp, "home")
+
+	project := Doctor(ResolveScope(false, tmp, home))
+	c, _ := checkByPrefix(project, "rules directory")
+	if strings.Join(c.Fix, " ") != "hydra init" || c.Detail != "run 'hydra init'" {
+		t.Errorf("project fix = %v / %q", c.Fix, c.Detail)
+	}
+	if project.Initialized {
+		t.Error("a scope with no rules directory is not initialized")
+	}
+
+	gs := ResolveScope(true, tmp, home)
+	var out bytes.Buffer
+	if err := Init(gs, &out); err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, filepath.Join(home, ".hydra", "rules", "a.md"), "---\npaths: [\"a/**\"]\n---\n\n# A\n")
+	global := Doctor(gs)
+	if !global.Initialized {
+		t.Error("an initialized global scope should say so")
+	}
+	c, ok := checkByPrefix(global, "index.md is current")
+	if !ok || c.OK {
+		t.Fatalf("expected a stale index after adding a rule: %+v", c)
+	}
+	if strings.Join(c.Fix, " ") != "hydra sync --global" || c.Detail != "run 'hydra sync --global'" {
+		t.Errorf("global fix = %v / %q, want hydra sync --global", c.Fix, c.Detail)
+	}
+	for _, check := range global.Checks {
+		if check.OK && len(check.Fix) > 0 && check.Detail == "" {
+			t.Errorf("%s: a fix with no detail", check.Name)
+		}
+	}
+}
+
+// A library moved for one run with --hydra-home is only fixed by a command
+// that moves it the same way.
+func TestDoctorFixCarriesAHydraHomeFlag(t *testing.T) {
+	tmp := t.TempDir()
+	lib := filepath.Join(tmp, "lib")
+	s := ResolveScopeIn(true, tmp, filepath.Join(tmp, "home"), lib)
+	s.GlobalHomeSource = hydraHomeSourceFlag
+	rep := Doctor(s)
+	c, _ := checkByPrefix(rep, "rules directory")
+	if want := "hydra init --global --hydra-home " + lib; strings.Join(c.Fix, " ") != want {
+		t.Errorf("fix = %v, want %s", c.Fix, want)
+	}
+}

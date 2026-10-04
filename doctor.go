@@ -18,6 +18,9 @@ type DoctorCheck struct {
 	OK       bool   `json:"ok"`
 	Severity string `json:"severity"`
 	Detail   string `json:"detail,omitempty"`
+	// Fix is the command that clears the check, as an argument vector, scoped
+	// the way the report was. Scripts run or show it without parsing Detail.
+	Fix []string `json:"fix,omitempty"`
 }
 
 type DoctorReport struct {
@@ -25,9 +28,40 @@ type DoctorReport struct {
 	Home  string `json:"home"`
 	// HomeSource names what put the library where it is — only meaningful for
 	// the global scope, where an override can move it.
-	HomeSource string        `json:"home_source,omitempty"`
-	OK         bool          `json:"ok"`
-	Checks     []DoctorCheck `json:"checks"`
+	HomeSource string `json:"home_source,omitempty"`
+	// Initialized says whether the library directory exists at all, so a
+	// caller can tell "this is not a hydra project" from "this one is broken".
+	Initialized bool          `json:"initialized"`
+	OK          bool          `json:"ok"`
+	Checks      []DoctorCheck `json:"checks"`
+}
+
+// runPhrase renders a check's fix for people, as "run '...'". The detail and
+// the Fix argv come from the same slice, so they cannot disagree.
+func runPhrase(argv []string) string {
+	quoted := make([]string, len(argv))
+	for i, a := range argv {
+		if strings.ContainsAny(a, " \t'\"") {
+			a = "\"" + a + "\""
+		}
+		quoted[i] = a
+	}
+	return "run '" + strings.Join(quoted, " ") + "'"
+}
+
+// scopedCommand builds a hydra command that acts on the same library the
+// report read. A global report needs --global, and a library moved for one run
+// with --hydra-home needs that flag again — the environment variable carries
+// over on its own, so it needs nothing.
+func scopedCommand(global bool, home, homeSource string, verb ...string) []string {
+	argv := append([]string{"hydra"}, verb...)
+	if global {
+		argv = append(argv, "--global")
+	}
+	if homeSource == hydraHomeSourceFlag {
+		argv = append(argv, hydraHomeFlag, home)
+	}
+	return argv
 }
 
 // Doctor inspects a scope and returns a structured report. It performs no output
@@ -45,11 +79,19 @@ func Doctor(s Scope) DoctorReport {
 			rep.OK = false
 		}
 	}
+	// fixable adds a check whose remedy is a hydra command for this scope;
+	// detail is a format whose %s is the "run '...'" phrase.
+	fixable := func(name string, ok bool, severity, detail string, verb ...string) {
+		fix := scopedCommand(s.Global, s.Home, rep.HomeSource, verb...)
+		add(name, ok, severity, fmt.Sprintf(detail, runPhrase(fix)))
+		rep.Checks[len(rep.Checks)-1].Fix = fix
+	}
 
 	if !isDir(s.RulesDir) {
-		add("rules directory present", false, sevError, "run 'hydra init'")
+		fixable("rules directory present", false, sevError, "%s", "init")
 		return rep
 	}
+	rep.Initialized = true
 	add("rules directory present", true, sevError, "")
 
 	rules, err := LoadRules(s.RulesDir)
@@ -69,20 +111,20 @@ func Doctor(s Scope) DoctorReport {
 
 	indexPath := filepath.Join(s.RulesDir, indexFilename)
 	// A missing index reads as "", which never equals a render — so the check
-	// fails and reports "run 'hydra sync'", which is the right advice either way.
+	// fails and reports the sync command, which is the right advice either way.
 	current, _ := os.ReadFile(indexPath)
-	add("index.md is current", string(current) == RenderIndex(s, rules), sevWarning, "run 'hydra sync'")
+	fixable("index.md is current", string(current) == RenderIndex(s, rules), sevWarning, "%s", "sync")
 
 	targets := DetectTargets(s)
-	add("at least one instruction file detected", len(targets) > 0, sevWarning, "run 'hydra init'")
+	fixable("at least one instruction file detected", len(targets) > 0, sevWarning, "%s", "init")
 
 	block := RenderBlock(s, rules)
 	for _, t := range targets {
-		add("block current in "+t, blockMatches(t, block), sevWarning, "run 'hydra sync'")
+		fixable("block current in "+t, blockMatches(t, block), sevWarning, "%s", "sync")
 	}
 
-	add("no v0.1 skill-curator artifacts", !hasV01Artifacts(s), sevWarning, "run 'hydra init' to clean up")
-	add("no gemini artifacts", !hasGeminiArtifacts(s), sevWarning, "gemini support was removed — run 'hydra init' to clean up")
+	fixable("no v0.1 skill-curator artifacts", !hasV01Artifacts(s), sevWarning, "%s to clean up", "init")
+	fixable("no gemini artifacts", !hasGeminiArtifacts(s), sevWarning, "gemini support was removed — %s to clean up", "init")
 
 	return rep
 }

@@ -10,7 +10,7 @@ lazy-loaded abilities for AI coding agents. Rules live in `.hydra/rules/` (or
 name, triggers, and description are inlined into the managed instruction block while the
 authored body stays on disk until selected, and they can be matched by the agent or
 invoked through the generated `$ability` router. Commands: `init`, `sync`, `add`, `new`, `list`, `doctor`,
-`ability init|sync|new|list|doctor`, `self-update`.
+`match`, `ability init|sync|new|list|match|doctor`, `self-update`.
 
 ## Build & test
 - `go test ./...` — full suite (temp-dir based, no network). `TestMain` (`main_test.go`)
@@ -46,6 +46,10 @@ invoked through the generated `$ability` router. Commands: `init`, `sync`, `add`
 - `block.go` — sentinel splicing (`<!-- hydra:rules:start/end -->`), replace-in-place.
 - `detect.go` — which agent instruction files exist at this scope.
 - `init.go` / `sync.go` / `add.go` / `new.go` / `list.go` / `doctor.go` — one command each.
+- `match.go` — `hydra match`: the glob and command-boundary semantics for `paths` /
+  `commands`, read across the project, global, and `--library` libraries without merging
+  them. Read-only; a broken file is reported beside the matches, never instead of them.
+  Exit 1 means no match, 2 a usage error (`exitCodeError` carries the code to `main`).
 - `relocate.go` — moves the global library and rewrites the blocks that name it. Move
   first, rewire second: a failed rewire leaves the files safe and names the one command
   that finishes the job. Falls back to copy-then-remove on `EXDEV`, so a home directory

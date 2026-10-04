@@ -15,9 +15,23 @@ func main() {
 		if msg := err.Error(); msg != "" {
 			fmt.Fprintln(os.Stderr, "error:", msg)
 		}
-		os.Exit(1)
+		code := 1
+		var ec *exitCodeError
+		if errors.As(err, &ec) {
+			code = ec.code
+		}
+		os.Exit(code)
 	}
 }
+
+// exitCodeError carries an exit status other than 1 up to main. msg may be
+// empty when the command has already reported the problem itself.
+type exitCodeError struct {
+	code int
+	msg  string
+}
+
+func (e *exitCodeError) Error() string { return e.msg }
 
 // run builds the root command and executes it against args. It is the testable
 // seam: tests drive the CLI through here with in-memory writers.
@@ -141,6 +155,7 @@ func newRootCmd(out, errw io.Writer) *cobra.Command {
 
 	root.AddCommand(newListCmd(out))
 	root.AddCommand(newDoctorCmd(out))
+	root.AddCommand(newMatchCmd(out))
 	root.AddCommand(newAbilityCmd(out))
 
 	root.AddCommand(&cobra.Command{

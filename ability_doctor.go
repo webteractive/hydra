@@ -16,11 +16,20 @@ func AbilityDoctor(s AbilityScope) DoctorReport {
 			rep.OK = false
 		}
 	}
+	// fixable adds a check whose remedy is a hydra ability command; detail is
+	// a format whose %s is the "run '...'" phrase. Abilities are always global,
+	// so the command never needs --global.
+	fixable := func(name string, ok bool, severity, detail string, verb ...string) {
+		fix := scopedCommand(false, s.HydraHome, s.HydraHomeSource, append([]string{"ability"}, verb...)...)
+		add(name, ok, severity, fmt.Sprintf(detail, runPhrase(fix)))
+		rep.Checks[len(rep.Checks)-1].Fix = fix
+	}
 
 	if !isDir(s.AbilitiesDir) {
-		add("abilities directory present", false, sevError, "run 'hydra ability init'")
+		fixable("abilities directory present", false, sevError, "%s", "init")
 		return rep
 	}
+	rep.Initialized = true
 	add("abilities directory present", true, sevError, "")
 
 	abilities, err := LoadAbilities(s.AbilitiesDir)
@@ -32,7 +41,7 @@ func AbilityDoctor(s AbilityScope) DoctorReport {
 
 	indexPath := filepath.Join(s.AbilitiesDir, abilityIndexFile)
 	currentIndex, _ := os.ReadFile(indexPath)
-	add("abilities index.md is current", string(currentIndex) == RenderAbilityIndex(abilities), sevWarning, "run 'hydra ability sync'")
+	fixable("abilities index.md is current", string(currentIndex) == RenderAbilityIndex(abilities), sevWarning, "%s", "sync")
 
 	var untriggered []string
 	for _, ability := range abilities {
@@ -68,16 +77,16 @@ func AbilityDoctor(s AbilityScope) DoctorReport {
 	add("no trigger is shadowed by an ability name", len(shadowed) == 0, sevWarning,
 		"these can never fire: "+strings.Join(shadowed, "; "))
 
-	add("no gemini artifacts", !hasGeminiAbilityArtifacts(s), sevWarning,
-		"gemini support was removed — run 'hydra ability init' to clean up")
+	fixable("no gemini artifacts", !hasGeminiAbilityArtifacts(s), sevWarning,
+		"gemini support was removed — %s to clean up", "init")
 
 	harnesses := detectAbilityHarnesses(s)
-	add("at least one global instruction file detected", len(harnesses) > 0, sevWarning, "run 'hydra ability init'")
+	fixable("at least one global instruction file detected", len(harnesses) > 0, sevWarning, "%s", "init")
 	block := RenderAbilityBlock(s, abilities)
 	for _, harness := range harnesses {
-		add("abilities block current in "+harness.InstructionPath,
+		fixable("abilities block current in "+harness.InstructionPath,
 			managedBlockMatches(harness.InstructionPath, block, abilityBlockStart, abilityBlockEnd),
-			sevWarning, "run 'hydra ability sync'")
+			sevWarning, "%s", "sync")
 
 		data, readErr := os.ReadFile(harness.RouterPath)
 		if readErr != nil {
@@ -85,7 +94,7 @@ func AbilityDoctor(s AbilityScope) DoctorReport {
 				add(harness.Name+" ability router is Hydra-owned", false, sevError,
 					"router directory exists but is not a Hydra-managed router: "+filepath.Dir(harness.RouterPath))
 			} else {
-				add(harness.Name+" ability router is installed", false, sevWarning, "run 'hydra ability sync'")
+				fixable(harness.Name+" ability router is installed", false, sevWarning, "%s", "sync")
 			}
 			continue
 		}
@@ -93,7 +102,7 @@ func AbilityDoctor(s AbilityScope) DoctorReport {
 		add(harness.Name+" ability router is Hydra-owned", owned, sevError,
 			"refusing to overwrite user-authored skill at "+harness.RouterPath)
 		if owned {
-			add(harness.Name+" ability router is current", string(data) == RenderAbilityRouter(s, harness), sevWarning, "run 'hydra ability sync'")
+			fixable(harness.Name+" ability router is current", string(data) == RenderAbilityRouter(s, harness), sevWarning, "%s", "sync")
 		}
 	}
 

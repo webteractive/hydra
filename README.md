@@ -98,6 +98,7 @@ Scripts get the same two facts as `home` and `home_source` in `--json`.
 | `hydra new <name>` | Scaffold a blank rule for hand-editing. |
 | `hydra list [--json]` | Show labeled rule details for people; use `--json` for agents and scripts. |
 | `hydra doctor [--json]` | Check that everything is wired up. |
+| `hydra match --path <file> --command <cmd> [--json]` | Check which rules a file or command fires. Exits 1 when none does. |
 | `hydra relocate <path>` | Move the global library and rewrite every managed block. |
 | `hydra ability init` | Initialize the global abilities catalog and harness routers. |
 | `hydra ability sync` | Validate abilities and refresh generated wiring. |
@@ -130,6 +131,41 @@ triggers: ["auditing a Rust dependency"]
 instruction files between `<!-- hydra:rules:start -->` sentinels. The agent reads the
 table on every prompt and opens only the rule files whose matchers hit. Rules marked
 `always: true` are inlined into the block instead of indexed.
+
+### How a match is decided
+
+`paths` and `commands` are mechanical, so hydra can decide them without an agent:
+
+```bash
+hydra match --path app/Jobs/SendMail.php
+hydra match --command 'php artisan test' --json
+```
+
+- **`paths`** are globs. `*` and `?` match within one path segment and `**` matches any
+  number of segments, so `app/Jobs/**` covers everything under `app/Jobs/`. A pattern with
+  no slash matches the file name at any depth, as in `.gitignore`: `*.php` means every PHP
+  file. A project rule is matched against the path relative to the project root. A global
+  rule is loaded from every directory, so it is also matched against the absolute path —
+  `**/.env*` fires for a `.env` anywhere on disk.
+- **`commands`** match anywhere in the command line, but never starting or ending inside a
+  word: `artisan test` matches `php artisan test`, `vendor/bin/pest` matches
+  `./vendor/bin/pest`, and `warden` does not match `wardenx`. Whitespace is collapsed, and
+  quoting is not parsed, so `echo "git tag"` matches `git tag`.
+- **`triggers`** describe situations. Only an agent can judge those, so `match` never
+  reports them.
+
+`match` reads the project library, the global library, and any `--library <dir>` you add.
+An extra library may use the dotfiles dialect: a `title:` key names a rule whose body has no
+H1 (an H1 always wins), `when:` is ignored, and a `README.md` without frontmatter is skipped. It writes nothing, reports each match with the
+library and pattern that produced it, and lists unparseable files beside the matches
+rather than failing. Always-on rules are left out unless you pass `--include-always`,
+since they are already in context. Exit status is 0 when a rule matched, 1 when none did,
+and 2 for a usage error; `--json` prints a report in every case.
+
+`hydra doctor --json` and `hydra ability doctor --json` give each check a `fix` — the
+command that clears it, as an argument vector, scoped like the report (`hydra sync
+--global` for the global library) — and an `initialized` flag that tells "no library here"
+apart from a broken one.
 
 ### Abilities
 

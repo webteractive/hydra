@@ -14,6 +14,10 @@ import (
 // indexFilename is the generated table; it is never itself a rule.
 const indexFilename = "index.md"
 
+// readmeFilename documents a library rather than ruling anything, unless it
+// carries frontmatter.
+const readmeFilename = "README.md"
+
 // Rule is one Markdown file in the library. Matchers are optional individually,
 // but a rule with none of them and Always=false can never fire.
 type Rule struct {
@@ -35,6 +39,16 @@ type ruleFrontmatter struct {
 	Triggers []string `yaml:"triggers,omitempty"`
 }
 
+// parsedFrontmatter is what ParseRule reads: hydra's keys plus the title key the
+// dotfiles rule library uses in place of an H1. Title is a fallback for a body
+// with no H1, never an override — the H1 is how hydra names a rule, and the
+// dotfiles migration turns title: into one. It is read, never written:
+// RenderRuleFile serializes ruleFrontmatter alone.
+type parsedFrontmatter struct {
+	ruleFrontmatter `yaml:",inline"`
+	Title           string `yaml:"title,omitempty"`
+}
+
 var (
 	frontmatterRe = regexp.MustCompile(`(?s)\A---\r?\n(.*?)\r?\n---\r?\n?`)
 	h1Re          = regexp.MustCompile(`(?m)^#\s+(.+?)\s*$`)
@@ -46,8 +60,9 @@ var (
 func ParseRule(name, path, content string) (Rule, error) {
 	r := Rule{Name: name, Path: path, Body: content}
 
+	var title string
 	if m := frontmatterRe.FindStringSubmatch(content); m != nil {
-		var fm ruleFrontmatter
+		var fm parsedFrontmatter
 		if err := yaml.Unmarshal([]byte(m[1]), &fm); err != nil {
 			return Rule{}, fmt.Errorf("%s: invalid frontmatter: %w", path, err)
 		}
@@ -56,12 +71,16 @@ func ParseRule(name, path, content string) (Rule, error) {
 		r.Commands = fm.Commands
 		r.Triggers = fm.Triggers
 		r.Body = content[len(m[0]):]
+		title = strings.TrimSpace(fm.Title)
 	}
 
 	r.Body = strings.TrimLeft(r.Body, "\n")
-	if m := h1Re.FindStringSubmatch(r.Body); m != nil {
+	switch m := h1Re.FindStringSubmatch(r.Body); {
+	case m != nil:
 		r.Title = m[1]
-	} else {
+	case title != "":
+		r.Title = title
+	default:
 		r.Title = headline(name)
 	}
 	return r, nil
@@ -73,17 +92,41 @@ func (r Rule) HasMatcher() bool {
 }
 
 // LoadRules reads every *.md in dir except index.md, sorted by name. A missing
-// directory is not an error — an uninitialized scope simply has no rules.
+// directory is not an error — an uninitialized scope simply has no rules. The
+// first file that fails to read or parse fails the whole load, which is what
+// sync and doctor want: they must not render a library they cannot fully read.
 func LoadRules(dir string) ([]Rule, error) {
+	rules, errs := loadRulesEach(dir)
+	if len(errs) > 0 {
+		return nil, errs[0].Err
+	}
+	return rules, nil
+}
+
+// ruleLoadError is one file LoadRulesTolerant could not use.
+type ruleLoadError struct {
+	File string
+	Err  error
+}
+
+// LoadRulesTolerant is LoadRules for readers that only report: every rule that
+// parses is returned, and each file that does not is listed beside them, so one
+// broken rule cannot hide the rest of its library.
+func LoadRulesTolerant(dir string) ([]Rule, []ruleLoadError) {
+	return loadRulesEach(dir)
+}
+
+func loadRulesEach(dir string) ([]Rule, []ruleLoadError) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return []Rule{}, nil
 		}
-		return nil, err
+		return nil, []ruleLoadError{{File: dir, Err: err}}
 	}
 
 	rules := []Rule{}
+	var errs []ruleLoadError
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") || e.Name() == indexFilename {
 			continue
@@ -91,17 +134,25 @@ func LoadRules(dir string) ([]Rule, error) {
 		path := filepath.Join(dir, e.Name())
 		data, err := os.ReadFile(path)
 		if err != nil {
-			return nil, err
+			errs = append(errs, ruleLoadError{File: path, Err: err})
+			continue
+		}
+		// A library's README documents the library; it is a rule only if it
+		// says so with frontmatter. The dotfiles library keeps one beside its
+		// rules, and without this it reads as a rule that can never fire.
+		if e.Name() == readmeFilename && !frontmatterRe.Match(data) {
+			continue
 		}
 		r, err := ParseRule(strings.TrimSuffix(e.Name(), ".md"), path, string(data))
 		if err != nil {
-			return nil, err
+			errs = append(errs, ruleLoadError{File: path, Err: err})
+			continue
 		}
 		rules = append(rules, r)
 	}
 
 	sort.Slice(rules, func(i, j int) bool { return rules[i].Name < rules[j].Name })
-	return rules, nil
+	return rules, errs
 }
 
 // RenderRuleFile serializes a rule back to disk form: frontmatter then body.

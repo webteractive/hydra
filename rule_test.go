@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -166,5 +167,53 @@ func TestRenderRuleFileRoundTrips(t *testing.T) {
 	}
 	if out.Body != in.Body {
 		t.Errorf("Body = %q want %q", out.Body, in.Body)
+	}
+}
+
+// The dotfiles rule library names a rule with a title: key rather than an H1.
+// hydra reads that as a fallback so `hydra match --library` can title those
+// rules, but the H1 stays the title wherever there is one: the dotfiles
+// migration converts title: into an H1, and the two must never disagree.
+func TestParseRuleTitleFrontmatterIsAFallback(t *testing.T) {
+	r, err := ParseRule("warden", "/x/warden.md",
+		"---\ntitle: warden (env & secrets CLI)\nwhen:\n  - checking a key\npaths: [\"**/.env*\"]\n---\n\n- Use warden.\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Title != "warden (env & secrets CLI)" {
+		t.Errorf("Title = %q, want the frontmatter title when there is no H1", r.Title)
+	}
+	if len(r.Paths) != 1 || len(r.Triggers) != 0 {
+		t.Errorf("when: is not a hydra key and must not become triggers: %+v", r)
+	}
+
+	both, err := ParseRule("warden", "/x/warden.md", "---\ntitle: Old title\n---\n\n# Warden\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if both.Title != "Warden" {
+		t.Errorf("Title = %q, want the H1 to win over title:", both.Title)
+	}
+	if strings.Contains(RenderRuleFile(Rule{Body: "# A\n"}), "title") {
+		t.Error("RenderRuleFile must not start writing a title key")
+	}
+}
+
+func TestLoadRulesSkipsAReadmeWithoutFrontmatter(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite(t, filepath.Join(dir, "README.md"), "# Rules\n\nHow this library works.\n")
+	mustWrite(t, filepath.Join(dir, "a.md"), "---\npaths: [\"a/**\"]\n---\n")
+	rules, err := LoadRules(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rules) != 1 || rules[0].Name != "a" {
+		t.Errorf("rules = %+v, want only a", rules)
+	}
+
+	// A README that does carry frontmatter is a rule like any other.
+	mustWrite(t, filepath.Join(dir, "README.md"), "---\ncommands: [\"make\"]\n---\n")
+	if rules, _ := LoadRules(dir); len(rules) != 2 {
+		t.Errorf("a README with frontmatter is a rule: %+v", rules)
 	}
 }

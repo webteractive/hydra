@@ -112,3 +112,28 @@ func TestAbilityDoctorFlagsTriggersShadowedAfterFillerStripping(t *testing.T) {
 	}
 	t.Fatal("shadow check did not run")
 }
+
+func TestAbilityDoctorFixCommands(t *testing.T) {
+	home := t.TempDir()
+	s := ResolveAbilityScope(home)
+	rep := AbilityDoctor(s)
+	c, _ := checkByPrefix(rep, "abilities directory present")
+	if strings.Join(c.Fix, " ") != "hydra ability init" || rep.Initialized {
+		t.Errorf("missing catalog: fix = %v, initialized = %v", c.Fix, rep.Initialized)
+	}
+
+	var out bytes.Buffer
+	if err := AbilityInit(s, &out); err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, filepath.Join(s.AbilitiesDir, "shipper", abilityFilename),
+		"---\nname: shipper\ndescription: Ship it.\ntriggers: [ship it]\n---\n")
+	rep = AbilityDoctor(s)
+	if !rep.Initialized {
+		t.Error("an initialized catalog should say so")
+	}
+	c, ok := checkByPrefix(rep, "abilities index.md is current")
+	if !ok || c.OK || strings.Join(c.Fix, " ") != "hydra ability sync" {
+		t.Errorf("stale index: %+v", c)
+	}
+}
