@@ -13,7 +13,11 @@ invoked through the generated `$ability` router. Commands: `init`, `sync`, `add`
 `ability init|sync|new|list|doctor`, `self-update`.
 
 ## Build & test
-- `go test ./...` — full suite (temp-dir based, no network).
+- `go test ./...` — full suite (temp-dir based, no network). `TestMain` (`main_test.go`)
+  gives the suite a throwaway `HOME` and unsets `HYDRA_HOME` before any test runs: a test
+  that forgot its own `t.Setenv` once ran `relocate` against the developer's real library
+  and deleted it with its temp dir. Keep that wall, and still set both in every test that
+  touches a library.
 - `go vet ./...` and `gofmt -l .` — must be clean (CI enforces both).
 - `govulncheck ./...` — must report no vulnerabilities (CI enforces). Findings here are
   usually standard-library ones cleared by a Go patch release rather than by code changes.

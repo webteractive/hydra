@@ -35,7 +35,7 @@ func TestRunVersionHelp(t *testing.T) {
 func TestRunLifecycleProject(t *testing.T) {
 	tmp := t.TempDir()
 	t.Chdir(tmp)
-	t.Setenv("HOME", filepath.Join(tmp, "home"))
+	isolateHome(t, filepath.Join(tmp, "home"))
 
 	if _, err := runCLI(t, "init"); err != nil {
 		t.Fatal(err)
@@ -74,7 +74,7 @@ func TestRunLifecycleProject(t *testing.T) {
 func TestRunAddInitializesFromScratch(t *testing.T) {
 	tmp := t.TempDir()
 	t.Chdir(tmp)
-	t.Setenv("HOME", filepath.Join(tmp, "home"))
+	isolateHome(t, filepath.Join(tmp, "home"))
 
 	if _, err := runCLI(t, "add", "--always",
 		"--title", "Never commit automatically",
@@ -92,7 +92,7 @@ func TestRunGlobalScope(t *testing.T) {
 	tmp := t.TempDir()
 	home := filepath.Join(tmp, "home")
 	t.Chdir(tmp)
-	t.Setenv("HOME", home)
+	isolateHome(t, home)
 
 	if _, err := runCLI(t, "init", "--global"); err != nil {
 		t.Fatal(err)
@@ -110,7 +110,7 @@ func TestRunGlobalScope(t *testing.T) {
 func TestRunSyncUninitializedFails(t *testing.T) {
 	tmp := t.TempDir()
 	t.Chdir(tmp)
-	t.Setenv("HOME", filepath.Join(tmp, "home"))
+	isolateHome(t, filepath.Join(tmp, "home"))
 
 	if _, err := runCLI(t, "sync"); err == nil {
 		t.Error("sync on an uninitialized project should fail")
@@ -121,7 +121,7 @@ func TestRunAbilityLifecycle(t *testing.T) {
 	tmp := t.TempDir()
 	home := filepath.Join(tmp, "home")
 	t.Chdir(tmp)
-	t.Setenv("HOME", home)
+	isolateHome(t, home)
 
 	if _, err := runCLI(t, "ability", "init"); err != nil {
 		t.Fatal(err)
@@ -152,7 +152,7 @@ func TestRunAbilityLifecycle(t *testing.T) {
 func TestRunGlobalFailsWithoutHome(t *testing.T) {
 	tmp := t.TempDir()
 	t.Chdir(tmp)
-	t.Setenv("HOME", "")
+	isolateHome(t, "")
 
 	out, err := runCLI(t, "init", "--global")
 	if err == nil {
@@ -193,7 +193,7 @@ func TestVersionFlagAndSubcommandAgree(t *testing.T) {
 // cannot reason about an ability without them.
 func TestAbilityListJSONExposesTriggers(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	isolateHome(t, home)
 	if _, err := runCLI(t, "ability", "init"); err != nil {
 		t.Fatal(err)
 	}
@@ -259,7 +259,7 @@ func TestHelpDoesNotDescribeAbilitiesAsLazyLoaded(t *testing.T) {
 // guess the flag exists.
 func TestHumanOutputPointsAtTheJSONFlag(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	isolateHome(t, home)
 	project := t.TempDir()
 	t.Chdir(project)
 
@@ -339,7 +339,7 @@ func TestRunGlobalScopeHonorsHydraHomeFlag(t *testing.T) {
 	home := filepath.Join(tmp, "home")
 	library := filepath.Join(tmp, "elsewhere")
 	t.Chdir(tmp)
-	t.Setenv("HOME", home)
+	isolateHome(t, home)
 
 	if _, err := runCLI(t, "init", "--global", "--hydra-home", library); err != nil {
 		t.Fatal(err)
@@ -475,7 +475,7 @@ func TestDoctorReportsTheDefaultLibrarySource(t *testing.T) {
 	tmp := t.TempDir()
 	home := filepath.Join(tmp, "home")
 	t.Chdir(tmp)
-	t.Setenv("HOME", home)
+	isolateHome(t, home)
 
 	if _, err := runCLI(t, "init", "--global"); err != nil {
 		t.Fatal(err)
@@ -574,7 +574,7 @@ func TestRunRelocateDefaultsToTheDefaultLibrary(t *testing.T) {
 	home := filepath.Join(tmp, "home")
 	dest := filepath.Join(tmp, "elsewhere")
 	t.Chdir(tmp)
-	t.Setenv("HOME", home)
+	isolateHome(t, home)
 
 	if _, err := runCLI(t, "init", "--global"); err != nil {
 		t.Fatal(err)
@@ -600,7 +600,7 @@ func TestRunRelocateResolvesARelativeDestination(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Chdir(work)
-	t.Setenv("HOME", home)
+	isolateHome(t, home)
 
 	if _, err := runCLI(t, "init", "--global"); err != nil {
 		t.Fatal(err)
@@ -616,7 +616,7 @@ func TestRunRelocateResolvesARelativeDestination(t *testing.T) {
 func TestRunRelocateRequiresADestination(t *testing.T) {
 	tmp := t.TempDir()
 	t.Chdir(tmp)
-	t.Setenv("HOME", filepath.Join(tmp, "home"))
+	isolateHome(t, filepath.Join(tmp, "home"))
 
 	if _, err := runCLI(t, "relocate"); err == nil {
 		t.Error("relocate without a destination should fail")
