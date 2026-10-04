@@ -21,6 +21,15 @@ import (
 // It cannot finish the job on its own. HYDRA_HOME lives in a shell profile hydra
 // has no business editing, so the last thing it does is print the line to add.
 func Relocate(s Scope, dest string, out io.Writer) error {
+	// Relocating a library the blocks do not name would rewire them away from
+	// the one the agents are reading and hide it.
+	if err := guardRules(s); err != nil {
+		return err
+	}
+	if err := guardAbilities(abilityScopeOf(s)); err != nil {
+		return err
+	}
+
 	src := s.Home
 	if !isDir(src) {
 		return fmt.Errorf("no hydra library at %s — run 'hydra init --global' first", src)
@@ -48,8 +57,12 @@ func Relocate(s Scope, dest string, out io.Writer) error {
 	// Each half is synced only if it is there: `hydra ability init` alone
 	// produces an abilities-only library, and --global on its own a rules-only
 	// one, and syncing the missing half would fail a move that succeeded.
+	// The blocks still name the old place — that is what is being fixed — so
+	// the rewire must not trip the guard.
 	moved := ResolveScopeIn(true, "", s.UserHome, dest)
+	moved.Force = true
 	abilities := ResolveAbilityScopeIn(s.UserHome, dest)
+	abilities.Force = true
 	if isDir(moved.RulesDir) {
 		if err := Sync(moved, out); err != nil {
 			return rewireFailed(dest, err)
@@ -63,6 +76,14 @@ func Relocate(s Scope, dest string, out io.Writer) error {
 
 	fmt.Fprintf(out, "\nAdd this to your shell profile to make it stick:\n  export %s=%q\n", hydraHomeEnv, dest)
 	return nil
+}
+
+// abilityScopeOf is the abilities half of a global scope, for the guard.
+func abilityScopeOf(s Scope) AbilityScope {
+	as := ResolveAbilityScopeIn(s.UserHome, s.Home)
+	as.HydraHomeSource = s.GlobalHomeSource
+	as.Force = s.Force
+	return as
 }
 
 func rewireFailed(dest string, err error) error {

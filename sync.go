@@ -12,6 +12,9 @@ import (
 // create the library — that is init's job, so a typo'd directory is reported
 // rather than silently scaffolded.
 func Sync(s Scope, out io.Writer) error {
+	if err := guardRules(s); err != nil {
+		return err
+	}
 	if !isDir(s.RulesDir) {
 		return fmt.Errorf("no rules library at %s — run 'hydra init' first", s.RulesDir)
 	}

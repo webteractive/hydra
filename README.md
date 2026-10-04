@@ -78,9 +78,27 @@ rename cannot (a home directory and a dotfiles repository on separate volumes). 
 destination may be relative — unlike `HYDRA_HOME`, it was typed from a known directory.
 Setting the variable is the one part it cannot do for you, so it prints the line to add.
 
-Because global blocks embed absolute paths, a `hydra sync` run **without** the variable
-set would rewrite them back to `~/.hydra`. `hydra doctor` names the library it is reading
-and what put it there, so that is visible rather than mysterious:
+Because global blocks embed absolute paths, a shell that lost the variable would resolve
+`~/.hydra` and rewrite every block back to it. So every command that writes a global block —
+`init`, `sync`, `add`, `new`, `relocate`, and the `ability` ones, including the abilities half
+of a plain project `hydra init` — first reads which library the existing block names, and
+refuses with exit status 2 when it is not the one this run resolved, before creating
+anything:
+
+```
+refusing to rewrite the managed block in /Users/you/.claude/CLAUDE.md:
+  the block names the library at /Users/you/dotfiles/hydra
+  this run resolved              /Users/you/.hydra (default)
+Writing now would point every agent at the wrong library. If the block is right, run
+  export HYDRA_HOME="/Users/you/dotfiles/hydra"
+and try again; to point the block at /Users/you/.hydra instead, pass --force.
+```
+
+`relocate` rewires the blocks itself, so its own rewrite is exempt — but it refuses to move
+a library the blocks do not name, which would hide the one they do. `hydra doctor` and
+`hydra ability doctor` report the same mismatch as an error and advise the variable rather
+than a sync the guard would refuse. They also name the library they read and what put it
+there:
 
 ```
 hydra doctor (global: /Users/you/dotfiles/hydra via HYDRA_HOME)

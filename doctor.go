@@ -79,10 +79,17 @@ func Doctor(s Scope) DoctorReport {
 			rep.OK = false
 		}
 	}
+	// While a block names another library, every sync or init this report could
+	// advise would be refused (guard.go): the advice is the variable instead.
+	conflicts := rulesConflicts(s)
 	// fixable adds a check whose remedy is a hydra command for this scope;
 	// detail is a format whose %s is the "run '...'" phrase.
 	fixable := func(name string, ok bool, severity, detail string, verb ...string) {
 		fix := scopedCommand(s.Global, s.Home, rep.HomeSource, verb...)
+		if len(conflicts) > 0 {
+			add(name, ok, severity, conflictAdvice(conflicts[0], strings.Join(append(fix, "--force"), " ")))
+			return
+		}
 		add(name, ok, severity, fmt.Sprintf(detail, runPhrase(fix)))
 		rep.Checks[len(rep.Checks)-1].Fix = fix
 	}
@@ -119,8 +126,16 @@ func Doctor(s Scope) DoctorReport {
 	fixable("at least one instruction file detected", len(targets) > 0, sevWarning, "%s", "init")
 
 	block := RenderBlock(s, rules)
+	conflicting := map[string]bool{}
+	for _, c := range conflicts {
+		conflicting[c.File] = true
+		add("block names this library in "+c.File, false, sevError,
+			conflictAdvice(c, strings.Join(scopedCommand(s.Global, s.Home, rep.HomeSource, "sync", "--force"), " ")))
+	}
 	for _, t := range targets {
-		fixable("block current in "+t, blockMatches(t, block), sevWarning, "%s", "sync")
+		if !conflicting[t] {
+			fixable("block current in "+t, blockMatches(t, block), sevWarning, "%s", "sync")
+		}
 	}
 
 	fixable("no v0.1 skill-curator artifacts", !hasV01Artifacts(s), sevWarning, "%s to clean up", "init")

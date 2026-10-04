@@ -170,7 +170,21 @@ func newRootCmd(out, errw io.Writer) *cobra.Command {
 
 	root.AddCommand(newSelfUpdateCmd(out))
 
+	addForceFlag(root, "init", "sync", "new", "add", "relocate")
 	return root
+}
+
+// addForceFlag gives the named subcommands --force: every command that
+// rewrites a global managed block, and so is guarded against a block that
+// names a different library (guard.go).
+func addForceFlag(parent *cobra.Command, names ...string) {
+	for _, c := range parent.Commands() {
+		for _, name := range names {
+			if c.Name() == name {
+				c.Flags().Bool("force", false, "rewrite managed blocks even when they name a different global library")
+			}
+		}
+	}
 }
 
 func newAddCmd(out io.Writer) *cobra.Command {

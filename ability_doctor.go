@@ -16,11 +16,18 @@ func AbilityDoctor(s AbilityScope) DoctorReport {
 			rep.OK = false
 		}
 	}
+	// While the block names another library, every ability sync or init this
+	// report could advise would be refused (guard.go): the advice is the variable.
+	conflicts := abilityConflicts(s)
 	// fixable adds a check whose remedy is a hydra ability command; detail is
 	// a format whose %s is the "run '...'" phrase. Abilities are always global,
 	// so the command never needs --global.
 	fixable := func(name string, ok bool, severity, detail string, verb ...string) {
 		fix := scopedCommand(false, s.HydraHome, s.HydraHomeSource, append([]string{"ability"}, verb...)...)
+		if len(conflicts) > 0 {
+			add(name, ok, severity, conflictAdvice(conflicts[0], strings.Join(append(fix, "--force"), " ")))
+			return
+		}
 		add(name, ok, severity, fmt.Sprintf(detail, runPhrase(fix)))
 		rep.Checks[len(rep.Checks)-1].Fix = fix
 	}
@@ -83,10 +90,18 @@ func AbilityDoctor(s AbilityScope) DoctorReport {
 	harnesses := detectAbilityHarnesses(s)
 	fixable("at least one global instruction file detected", len(harnesses) > 0, sevWarning, "%s", "init")
 	block := RenderAbilityBlock(s, abilities)
+	conflicting := map[string]bool{}
+	for _, c := range conflicts {
+		conflicting[c.File] = true
+		add("block names this library in "+c.File, false, sevError,
+			conflictAdvice(c, strings.Join(scopedCommand(false, s.HydraHome, s.HydraHomeSource, "ability", "sync", "--force"), " ")))
+	}
 	for _, harness := range harnesses {
-		fixable("abilities block current in "+harness.InstructionPath,
-			managedBlockMatches(harness.InstructionPath, block, abilityBlockStart, abilityBlockEnd),
-			sevWarning, "%s", "sync")
+		if !conflicting[harness.InstructionPath] {
+			fixable("abilities block current in "+harness.InstructionPath,
+				managedBlockMatches(harness.InstructionPath, block, abilityBlockStart, abilityBlockEnd),
+				sevWarning, "%s", "sync")
+		}
 
 		data, readErr := os.ReadFile(harness.RouterPath)
 		if readErr != nil {

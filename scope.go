@@ -26,6 +26,9 @@ type Scope struct {
 	// GlobalHomeSource names what put GlobalHome where it is, so doctor can
 	// report an override that has silently stopped applying.
 	GlobalHomeSource string `json:"global_home_source,omitempty"`
+	// Force lets a write rewrite managed blocks that name a different global
+	// library (--force); see guard.go.
+	Force bool `json:"-"`
 }
 
 func ResolveScope(global bool, cwd, home string) Scope {
@@ -90,6 +93,15 @@ func (s Scope) ref(path string) string {
 
 // hydraHomeOverrides reads the two overrides for this invocation, so the flag
 // and the environment variable are never looked up from separate places.
+// forceFromCmd reads --force on the commands that define it.
+func forceFromCmd(cmd *cobra.Command) bool {
+	if cmd.Flags().Lookup("force") == nil {
+		return false
+	}
+	force, _ := cmd.Flags().GetBool("force")
+	return force
+}
+
 func hydraHomeOverrides(cmd *cobra.Command) (flag, env string) {
 	flag, _ = cmd.Flags().GetString(hydraHomeFlagName)
 	return flag, os.Getenv(hydraHomeEnv)
@@ -112,6 +124,7 @@ func globalScopeFromCmd(cmd *cobra.Command) (Scope, error) {
 	}
 	s := ResolveScopeIn(true, "", home, globalHome)
 	s.GlobalHomeSource = source
+	s.Force = forceFromCmd(cmd)
 	return s, nil
 }
 
@@ -148,5 +161,6 @@ func scopeFromCmd(cmd *cobra.Command) (Scope, error) {
 	}
 	s := ResolveScopeIn(false, cwd, home, globalHome)
 	s.GlobalHomeSource = source
+	s.Force = forceFromCmd(cmd)
 	return s, nil
 }

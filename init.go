@@ -11,6 +11,19 @@ import (
 // rules or abilities. Every mutating rule command calls it when its library is
 // absent, so a fresh project gets the complete Hydra setup.
 func Init(s Scope, out io.Writer) error {
+	// Both guards run before anything is scaffolded: a refused init must not
+	// leave an empty library behind at the place it would have written.
+	if err := guardRules(s); err != nil {
+		return err
+	}
+	abilityScope, err := abilityScopeFromRuleScope(s)
+	if err != nil {
+		return err
+	}
+	if err := guardAbilities(abilityScope); err != nil {
+		return err
+	}
+
 	if found, err := Teardown(s, out); err != nil {
 		return err
 	} else if found {
@@ -34,10 +47,6 @@ func Init(s Scope, out io.Writer) error {
 	}
 
 	if err := Sync(s, out); err != nil {
-		return err
-	}
-	abilityScope, err := abilityScopeFromRuleScope(s)
-	if err != nil {
 		return err
 	}
 	if err := AbilityInit(abilityScope, out); err != nil {

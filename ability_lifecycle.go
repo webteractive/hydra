@@ -10,6 +10,9 @@ import (
 // AbilityInit creates the global ability library and all generated wiring. It
 // never creates or rewrites an authored ability bundle.
 func AbilityInit(s AbilityScope, out io.Writer) error {
+	if err := guardAbilities(s); err != nil {
+		return err
+	}
 	if _, err := removeGeminiAbilityArtifacts(s, out); err != nil {
 		return err
 	}
@@ -49,6 +52,9 @@ func AbilityInit(s AbilityScope, out io.Writer) error {
 // AbilitySync validates the complete library before touching generated files,
 // then refreshes the external catalog, instruction blocks, and owned routers.
 func AbilitySync(s AbilityScope, out io.Writer) error {
+	if err := guardAbilities(s); err != nil {
+		return err
+	}
 	if !isDir(s.AbilitiesDir) {
 		return fmt.Errorf("no abilities library at %s — run 'hydra ability init' first", s.AbilitiesDir)
 	}
@@ -92,6 +98,9 @@ func AbilityNew(s AbilityScope, name string, out io.Writer) error {
 	}
 	if !kebab.MatchString(name) {
 		return fmt.Errorf("name must be kebab-case (lowercase letters, digits, hyphens): %s", name)
+	}
+	if err := guardAbilities(s); err != nil {
+		return err
 	}
 	if !isDir(s.AbilitiesDir) {
 		if err := AbilityInit(s, out); err != nil {

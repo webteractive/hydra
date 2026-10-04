@@ -37,6 +37,9 @@ func Add(s Scope, req AddRequest, out io.Writer) error {
 		return fmt.Errorf("a rule needs at least one --glob, --command, or --trigger, or --always")
 	}
 
+	if err := guardRules(s); err != nil {
+		return err
+	}
 	if !isDir(s.RulesDir) {
 		if err := Init(s, out); err != nil {
 			return err

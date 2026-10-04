@@ -50,6 +50,10 @@ invoked through the generated `$ability` router. Commands: `init`, `sync`, `add`
   `commands`, read across the project, global, and `--library` libraries without merging
   them. Read-only; a broken file is reported beside the matches, never instead of them.
   Exit 1 means no match, 2 a usage error (`exitCodeError` carries the code to `main`).
+- `guard.go` — reads which library each existing global block names and refuses a write
+  (exit 2) that resolved a different one, unless `--force`. Every global writer calls it
+  before scaffolding anything; `relocate` exempts its own rewire. A shell that lost
+  `HYDRA_HOME` used to repoint every agent at `~/.hydra` and report success.
 - `relocate.go` — moves the global library and rewrites the blocks that name it. Move
   first, rewire second: a failed rewire leaves the files safe and names the one command
   that finishes the job. Falls back to copy-then-remove on `EXDEV`, so a home directory

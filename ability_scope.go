@@ -17,6 +17,9 @@ type AbilityScope struct {
 	// HydraHomeSource names what put HydraHome where it is; see
 	// Scope.GlobalHomeSource.
 	HydraHomeSource string `json:"hydra_home_source,omitempty"`
+	// Force lets a write rewrite an abilities block that names a different
+	// library (--force); see guard.go.
+	Force bool `json:"-"`
 }
 
 func ResolveAbilityScope(home string) AbilityScope {
@@ -53,6 +56,7 @@ func abilityScopeFromRuleScope(s Scope) (AbilityScope, error) {
 	}
 	as := ResolveAbilityScopeIn(home, s.GlobalHome)
 	as.HydraHomeSource = s.GlobalHomeSource
+	as.Force = s.Force
 	return as, nil
 }
 
@@ -71,5 +75,6 @@ func abilityScopeFromCmd(cmd *cobra.Command) (AbilityScope, error) {
 	}
 	s := ResolveAbilityScopeIn(home, hydraHome)
 	s.HydraHomeSource = source
+	s.Force = forceFromCmd(cmd)
 	return s, nil
 }

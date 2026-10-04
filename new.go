@@ -37,6 +37,9 @@ func New(s Scope, name string, out io.Writer) error {
 		return err
 	}
 
+	if err := guardRules(s); err != nil {
+		return err
+	}
 	if !isDir(s.RulesDir) {
 		if err := Init(s, out); err != nil {
 			return err
