@@ -97,7 +97,7 @@ func indexTable(s Scope, rules []Rule) string {
 		rows = append(rows, fmt.Sprintf("| %s | %s | %s |",
 			joinPlain(r.Triggers),
 			joinCode(append(append([]string{}, r.Paths...), r.Commands...)),
-			s.RuleRef(r),
+			escapeCell(s.RuleRef(r)),
 		))
 	}
 	if len(rows) == 0 {
@@ -113,7 +113,11 @@ func joinPlain(items []string) string {
 	if len(items) == 0 {
 		return "—"
 	}
-	return strings.Join(items, " · ")
+	escaped := make([]string, len(items))
+	for i, it := range items {
+		escaped[i] = escapeCell(it)
+	}
+	return strings.Join(escaped, " · ")
 }
 
 // joinCode joins globs and commands, wrapping each in backticks.
@@ -123,7 +127,7 @@ func joinCode(items []string) string {
 	}
 	quoted := make([]string, 0, len(items))
 	for _, it := range items {
-		quoted = append(quoted, "`"+it+"`")
+		quoted = append(quoted, "`"+escapeCell(it)+"`")
 	}
 	return strings.Join(quoted, " · ")
 }

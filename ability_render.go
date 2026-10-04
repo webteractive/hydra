@@ -47,11 +47,11 @@ func renderAbilityTable(abilities []Ability, withPath bool) string {
 		}
 		row := fmt.Sprintf("| `%s` | %s | %s |",
 			ability.Name,
-			escapeAbilityCell(triggers),
-			escapeAbilityCell(ability.Description),
+			escapeCell(triggers),
+			escapeCell(ability.Description),
 		)
 		if withPath {
-			row += fmt.Sprintf(" %s |", escapeAbilityCell(filepath.ToSlash(ability.Path)))
+			row += fmt.Sprintf(" %s |", escapeCell(filepath.ToSlash(ability.Path)))
 		}
 		b.WriteString(row + "\n")
 	}
@@ -149,6 +149,8 @@ func renderAbilityPicker(p AbilityPicker) string {
 	) + route
 }
 
-func escapeAbilityCell(value string) string {
+// escapeCell keeps a value inside its Markdown table cell: an unescaped | ends
+// the cell, even inside a code span, and shifts every column after it.
+func escapeCell(value string) string {
 	return strings.ReplaceAll(value, "|", `\|`)
 }

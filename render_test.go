@@ -124,3 +124,30 @@ func TestRenderBlockDemotesInlinedAlwaysRule(t *testing.T) {
 		t.Errorf("inlined H1 should be demoted to H4:\n%s", got)
 	}
 }
+
+// A | inside a cell would end the cell: GitHub-flavoured Markdown needs it
+// escaped, even inside a code span, or the row gains a column and the rule
+// path lands in the wrong one.
+func TestIndexTableEscapesPipes(t *testing.T) {
+	s := ResolveScope(false, "/p", "/h")
+	rules := []Rule{{Name: "pipes", Path: "/p/.hydra/rules/pipes.md", Triggers: []string{"piping a | b"}, Commands: []string{"cat x | grep y"}}}
+	row := ""
+	for _, line := range strings.Split(RenderIndex(s, rules), "\n") {
+		if strings.Contains(line, "pipes.md") {
+			row = line
+		}
+	}
+	if !strings.Contains(row, `piping a \| b`) || !strings.Contains(row, "`cat x \\| grep y`") {
+		t.Errorf("pipes not escaped: %q", row)
+	}
+	if got := strings.Count(row, "|") - strings.Count(row, `\|`); got != 4 {
+		t.Errorf("row has %d unescaped pipes, want 4 (three cells): %q", got, row)
+	}
+}
+
+func TestAbilityTableEscapesPipes(t *testing.T) {
+	table := renderAbilityTable([]Ability{{Name: "piper", Description: "reads a | b", Triggers: []string{"pipe it | now"}}}, false)
+	if !strings.Contains(table, `reads a \| b`) || !strings.Contains(table, `pipe it \| now`) {
+		t.Errorf("pipes not escaped:\n%s", table)
+	}
+}
