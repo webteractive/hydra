@@ -1,0 +1,69 @@
+{
+  "name": "hydra",
+  "version": "0.2.0",
+  "description": "Deterministic hydra routing for Claude Code. Routes a prompt that is exactly an ability's name or trigger (or $ability <name>) to that ability, delivers a rule the first time a file or command it covers is touched, and runs hydra's doctors so a stale library is named with the command that fixes it. Calls the hydra CLI for every decision and passes everything through when hydra is missing.",
+  "author": {
+    "name": "webteractive"
+  },
+  "homepage": "https://github.com/webteractive/hydra",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "hydraPath": {
+      "type": "string",
+      "title": "hydra binary",
+      "description": "The hydra executable to run. Falls back to ~/.local/bin/hydra when this one cannot start.",
+      "required": false,
+      "default": "hydra"
+    },
+    "hydraHome": {
+      "type": "string",
+      "title": "hydra library",
+      "description": "The global hydra library, for this mod's hydra processes. Empty (the default) resolves it as hydra does: HYDRA_HOME, else ~/.hydra. ~/ is allowed.",
+      "required": false,
+      "default": ""
+    },
+    "abilityRouting": {
+      "type": "boolean",
+      "title": "Route abilities",
+      "description": "Attach an ability to a prompt that is exactly its name or one of its triggers, or $ability <name>.",
+      "required": false,
+      "default": true
+    },
+    "ruleMode": {
+      "type": "string",
+      "title": "Rule delivery",
+      "description": "\"off\": rules are left to the instructions. \"status\": matching rules are named on the status line. \"inject\": a rule's text is also attached to the first tool result it applies to. \"enforce\" (default): as inject for reads, but the first edit, write or command a rule applies to is held once with the rule's text as the reason, so the rule is read before acting.",
+      "required": false,
+      "default": "enforce",
+      "options": ["off", "status", "inject", "enforce"]
+    },
+    "ruleLibraries": {
+      "type": "string",
+      "title": "Extra rule libraries",
+      "description": "More rules directories to match, as absolute paths separated by ':' (~/ allowed), e.g. ~/AI/dotfiles/rules. The project and global hydra libraries are always read.",
+      "required": false,
+      "default": ""
+    },
+    "maxInjectChars": {
+      "type": "number",
+      "title": "Largest body inlined",
+      "description": "A rule or ability longer than this many characters is delivered as a pointer to its file instead of inline.",
+      "required": false,
+      "default": 12000
+    },
+    "doctorIntervalSec": {
+      "type": "number",
+      "title": "Doctor staleness (seconds)",
+      "description": "On a prompt, re-run hydra's doctors in the background when the last run is older than this, to catch edits made outside the session.",
+      "required": false,
+      "default": 300
+    },
+    "trustProjectRules": {
+      "type": "boolean",
+      "title": "Deliver project rules",
+      "description": "Deliver the text of rules from the project's own .hydra/rules. Off: project rules are only named on the status line, for repositories whose rules you have not reviewed.",
+      "required": false,
+      "default": true
+    }
+  }
+}

@@ -1,0 +1,3 @@
+# Claude Code lays these beside any mod it loads from disk.
+.claude-plugin/types/
+tsconfig.json

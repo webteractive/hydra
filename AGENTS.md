@@ -27,6 +27,9 @@ invoked through the generated `$ability` router. Commands: `init`, `sync`, `add`
 - `goreleaser check` — validates `.goreleaser.yaml` (CI enforces, so a broken release
   config surfaces on the PR rather than after a tag is pushed).
 - `go build -o hydra .` — local binary (gitignored).
+- `claude plugin validate integrations/claude-code` and `claude plugin test
+  integrations/claude-code` — the Claude Code mod's checks. Not in CI (it would need a
+  `claude` binary); run both before every release.
 - The CLI is parsed with `spf13/cobra`. Command logic lives in decoupled functions
   (`Init`/`Sync`/`Add`/`New`/`List`/`Doctor`) that take a resolved `Scope` plus an
   `io.Writer`, which keeps them directly unit-testable; cobra is only the parsing
@@ -69,6 +72,9 @@ invoked through the generated `$ability` router. Commands: `init`, `sync`, `add`
 - `teardown.go` — removes artifacts hydra no longer owns: v0.1 skill-curator files and
   the Gemini wiring dropped after v0.2. Only sentinel-delimited blocks and files still
   carrying hydra's ownership marker are touched.
+- `integrations/claude-code/` — the Claude Code mod (TypeScript function hooks, no npm
+  dependencies). It routes abilities, delivers matched rules, and runs the doctors by
+  calling the CLI; it reimplements no hydra logic. See its README.
 - `VERSION` — embedded default version; release builds inject the tag via
   `-ldflags "-X main.injectedVersion=..."` (see `.goreleaser.yaml`).
 
