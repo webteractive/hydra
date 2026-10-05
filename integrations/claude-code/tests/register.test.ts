@@ -178,7 +178,7 @@ describe('rules', () => {
 
     expect(ran.deny).toBeUndefined()
     expect(ran.context).toBeUndefined()
-    expect(w.statuses.at(-1)).toBe('hydra ▸ rules: cli-version')
+    expect(w.statuses.at(-1)).toBe('rule matched: cli-version')
   })
 
   test('inject mode attaches the body to the first result only', { options: { ruleMode: 'inject' } }, async ($, on) => {
@@ -272,7 +272,7 @@ describe('rules', () => {
 
     const edit = await $.tool.call(EDIT(`${ROOT}/app/Jobs/A.php`))
     expect(edit.deny).toBeUndefined()
-    expect(w.statuses.at(-1)).toBe('hydra ▸ rules: queue')
+    expect(w.statuses.at(-1)).toBe('rule matched: queue')
   })
 
   test('a hydra without match turns rule delivery off', async ($, on) => {
@@ -290,7 +290,7 @@ describe('rules', () => {
     await $.session.start(SESSION)
 
     await $.tool.call(READ(`${ROOT}/main.go`))
-    expect(w.statuses.at(-1)).toBe('hydra ▸ rules: cli-version')
+    expect(w.statuses.at(-1)).toBe('rule matched: cli-version')
     await $.prompt.submit(typed('next thing'))
     expect(w.statuses.at(-1)).toBeUndefined()
   })
@@ -312,7 +312,7 @@ describe('doctor', () => {
     await w.clock.settle()
 
     expect(w.toasts).toEqual(['hydra: global: index.md is current — run hydra sync --global'])
-    expect(w.statuses.at(-1)).toBe('hydra ▸ ! run hydra sync --global')
+    expect(w.statuses.at(-1)).toBe('! run hydra sync --global')
     expect(w.runs.some(r => r.join(' ') === 'doctor --json'), 'no project library, no project doctor').toBe(false)
   })
 
@@ -459,7 +459,7 @@ describe('the global library', () => {
     await w.clock.settle()
 
     expect(w.toasts).toEqual([`hydra: global: global library not found at ${GLOBAL} — set HYDRA_HOME to your hydra library`])
-    expect(w.statuses.at(-1)).toBe('hydra ▸ ! set HYDRA_HOME to your hydra library')
+    expect(w.statuses.at(-1)).toBe('! set HYDRA_HOME to your hydra library')
     expect(w.runs.some(r => r.includes('--global') && r[0] === 'doctor'), 'its advice would be hydra init').toBe(false)
     expect(w.runs.some(r => r[0] === 'ability' && r[1] === 'doctor')).toBe(false)
   })

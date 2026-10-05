@@ -172,8 +172,8 @@ describe('doctor helpers', () => {
   test('the status line composes rules and drift, and clears when quiet', () => {
     const warn: Failure = { key: 'k', scope: 'global', name: 'n', severity: 'warning', fix: 'hydra sync --global' }
     expect(statusLine([], [])).toBeUndefined()
-    expect(statusLine(['a', 'b', 'c', 'd'], [])).toBe('hydra ▸ rules: a, b, c +1')
-    expect(statusLine(['a'], [warn])).toBe('hydra ▸ rules: a · ! run hydra sync --global')
-    expect(statusLine([], [warn, { ...warn, severity: 'error' }])).toBe('hydra ▸ ✗ hydra doctor')
+    expect(statusLine(['a', 'b', 'c', 'd'], [])).toBe('rules matched: a, b, c +1')
+    expect(statusLine(['a'], [warn])).toBe('rule matched: a · ! run hydra sync --global')
+    expect(statusLine([], [warn, { ...warn, severity: 'error' }])).toBe('✗ hydra doctor')
   })
 })

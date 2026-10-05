@@ -345,11 +345,12 @@ export function statusLine(fired: readonly string[], failures: readonly Failure[
   const parts: string[] = []
   if (fired.length) {
     const shown = fired.slice(0, 3).join(', ')
-    parts.push(`rules: ${shown}${fired.length > 3 ? ` +${fired.length - 3}` : ''}`)
+    parts.push(`${fired.length === 1 ? 'rule' : 'rules'} matched: ${shown}${fired.length > 3 ? ` +${fired.length - 3}` : ''}`)
   }
   if (failures.some(f => f.severity === 'error')) parts.push('✗ hydra doctor')
   else if (failures.length) parts.push(`! ${uniqueRemedies(failures).join('; ')}`)
-  return parts.length ? `hydra ▸ ${parts.join(' · ')}` : undefined
+  // Claude Code already labels the band with the plugin name, so no prefix of our own.
+  return parts.length ? parts.join(' · ') : undefined
 }
 
 // newestFirst adds names to a fired list without duplicates, newest first.
