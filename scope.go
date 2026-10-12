@@ -75,6 +75,18 @@ func (s Scope) RuleRef(r Rule) string {
 	return s.ref(r.Path)
 }
 
+// RuleFile names a rule relative to its library, for the index table. The block
+// states the library once above the table, so each row needs only the file name.
+// A rule outside the library (not produced by Load, but cheap to guard) keeps
+// its full ref rather than a path climbing out with "..".
+func (s Scope) RuleFile(r Rule) string {
+	rel, err := filepath.Rel(s.RulesDir, r.Path)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return s.RuleRef(r)
+	}
+	return filepath.ToSlash(rel)
+}
+
 // RulesDirRef renders the library directory for the grep hint.
 func (s Scope) RulesDirRef() string {
 	return s.ref(s.RulesDir)

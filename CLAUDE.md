@@ -45,7 +45,8 @@ invoked through the generated `$ability` router. Commands: `init`, `sync`, `add`
   `$HYDRA_HOME`, else `~/.hydra`. Overrides must be absolute; a relative one would
   scaffold a *global* library inside the current repository.
 - `rule.go` — the `Rule` model and YAML frontmatter parsing.
-- `render.go` — the index table and the managed block.
+- `render.go` — the index table and the managed block. Rows name only the rule file; the block
+  states the library directory once above the table, so a global home path is not repeated per row.
 - `block.go` — sentinel splicing (`<!-- hydra:rules:start/end -->`), replace-in-place.
 - `detect.go` — which agent instruction files exist at this scope.
 - `init.go` / `sync.go` / `add.go` / `new.go` / `list.go` / `doctor.go` — one command each.
@@ -53,6 +54,10 @@ invoked through the generated `$ability` router. Commands: `init`, `sync`, `add`
   `commands`, read across the project, global, and `--library` libraries without merging
   them. Read-only; a broken file is reported beside the matches, never instead of them.
   Exit 1 means no match, 2 a usage error (`exitCodeError` carries the code to `main`).
+- `heredoc.go` — blanks heredoc bodies before `commands:` matching, keeping those a shell
+  reads. Errs toward keeping text: an unclosed heredoc or quote, or a delimiter it cannot
+  settle, leaves the command whole. warden's `internal/hook/heredoc.go` carries the same
+  parse with its own keep rule; fix both together.
 - `guard.go` — reads which library each existing global block names and refuses a write
   (exit 2) that resolved a different one, unless `--force`. Every global writer calls it
   before scaffolding anything; `relocate` exempts its own rewire. A shell that lost

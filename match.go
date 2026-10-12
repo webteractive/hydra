@@ -221,11 +221,13 @@ func matchSegments(pattern, name []string) bool {
 // `php artisan test`, `vendor/bin/pest` matches `./vendor/bin/pest` — but
 // it must not start or end inside a word: `warden` does not match `wardenx`.
 // A pattern's own trailing space (the dotfiles library writes `"warden "`) is
-// redundant with that rule and trimmed. Quoting is not parsed, so
-// `echo "git tag"` matches `git tag`; that costs one rule read, never more.
+// redundant with that rule and trimmed. Heredoc bodies are data and are not
+// searched, unless a shell reads them (see stripHeredocBodies). Other quoting is
+// not parsed, so `echo "git tag"` matches `git tag`; that costs one rule read,
+// never more.
 func CommandMatches(pattern, command string) bool {
 	pattern = strings.Join(strings.Fields(pattern), " ")
-	command = strings.Join(strings.Fields(command), " ")
+	command = strings.Join(strings.Fields(stripHeredocBodies(command, bodyRunsAsShell)), " ")
 	if pattern == "" {
 		return false
 	}
@@ -271,7 +273,8 @@ func newMatchCmd(out io.Writer) *cobra.Command {
 			"            the absolute path.\n" +
 			"  commands  found anywhere in the command line, but never starting or ending\n" +
 			"            inside a word: 'artisan test' matches 'php artisan test', and\n" +
-			"            'warden' does not match 'wardenx'.\n\n" +
+			"            'warden' does not match 'wardenx'. Heredoc bodies are skipped,\n" +
+			"            since they are data, unless a shell reads them (bash <<EOF).\n\n" +
 			"Exit status: 0 when a rule matched, 1 when none did, 2 for a usage error.\n" +
 			"--json prints a report in all three cases.",
 		Example: "  hydra match --path app/Jobs/SendMail.php\n" +

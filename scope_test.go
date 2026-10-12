@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 func TestResolveScopeProject(t *testing.T) {
 	s := ResolveScope(false, "/work/app", "/home/u")
@@ -42,6 +45,24 @@ func TestRuleRefRelativeInProject(t *testing.T) {
 	}
 	if got := s.RulesDirRef(); got != ".hydra/rules" {
 		t.Errorf("RulesDirRef = %s want .hydra/rules", got)
+	}
+}
+
+func TestRuleFileIsRelativeToTheLibrary(t *testing.T) {
+	for _, global := range []bool{false, true} {
+		s := ResolveScope(global, "/work/app", "/home/u")
+		r := Rule{Path: filepath.Join(s.RulesDir, "rust.md")}
+		if got := s.RuleFile(r); got != "rust.md" {
+			t.Errorf("global=%v: RuleFile = %s want rust.md", global, got)
+		}
+	}
+}
+
+func TestRuleFileOutsideTheLibraryFallsBackToRuleRef(t *testing.T) {
+	s := ResolveScope(true, "/work/app", "/home/u")
+	r := Rule{Path: "/elsewhere/rust.md"}
+	if got := s.RuleFile(r); got != "/elsewhere/rust.md" {
+		t.Errorf("RuleFile = %s want the full ref", got)
 	}
 }
 

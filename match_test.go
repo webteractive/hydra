@@ -73,6 +73,52 @@ func TestCommandMatches(t *testing.T) {
 	}
 }
 
+// A heredoc body is data the command reads, not a command line: writing a file
+// that mentions `cargo add` must not fire the cargo rule. A body fed to a shell is
+// the exception — there it is the commands. Anything the parser cannot close
+// stays matchable, so a misread can cost a rule read but never hide a command.
+func TestCommandMatchesSkipsHeredocBodies(t *testing.T) {
+	for _, tc := range []struct {
+		name, pattern, command string
+		want                   bool
+	}{
+		{"body is data", "cargo add", "cat > notes.md <<'EOF'\nrun cargo add here\nEOF", false},
+		{"unquoted delimiter", "cargo add", "cat > notes.md <<EOF\ncargo add serde\nEOF", false},
+		{"double-quoted delimiter", "cargo add", "cat > n <<\"END\"\ncargo add serde\nEND", false},
+		{"dash strips tabs", "cargo add", "cat <<-EOF\n\tcargo add x\n\tEOF\necho done", false},
+		{"interpreter that is not a shell", "cargo add", "python3 - <<'EOF'\nrun('cargo add x')\nEOF", false},
+		{"two heredocs on one line", "cargo add", "cat <<A <<B\ncargo add 1\nA\ncargo add 2\nB", false},
+		{"apostrophe in body", "cargo add", "cat > n <<EOF\ndon't\nEOF\ncargo add x", true},
+		{"command after the body", "cargo add", "cat > f <<EOF\nx\nEOF\ncargo add serde", true},
+		{"command on the operator line", "cargo add", "cargo add serde <<EOF\nx\nEOF", true},
+		{"command after the operator", "git commit", "cat > m <<EOF && git commit -F m\nmsg\nEOF", true},
+		{"fed to bash", "artisan migrate", "bash <<'EOF'\nphp artisan migrate:fresh\nEOF", true},
+		{"fed to bash through sudo", "artisan migrate", "sudo bash <<EOF\nphp artisan migrate\nEOF", true},
+		{"fed to bash after env", "artisan migrate", "env A=1 bash -s <<EOF\nphp artisan migrate\nEOF", true},
+		{"fed to ssh", "artisan migrate", "ssh box <<EOF\nphp artisan migrate\nEOF", true},
+		{"piped to sh", "artisan migrate", "cat <<EOF | sh\nphp artisan migrate\nEOF", true},
+		{"unterminated stays matchable", "cargo add", "cat <<EOF\ncargo add x", true},
+		{"quoted << is not an operator", "cargo add", "echo \"a << b\"\ncargo add x\nb", true},
+		{"arithmetic shift is not an operator", "cargo add", "echo $((1 << 2)) && cargo add x", true},
+		{"here-string is not a heredoc", "cargo add", "cat <<< x\ncargo add y\nx", true},
+		{"commit message in a substitution", "cargo add", "git commit -m \"$(cat <<'EOF'\ndocument cargo add\nEOF\n)\"", false},
+		{"PR body in a substitution", "artisan migrate", "gh pr create --body \"$(cat <<'EOF'\nruns php artisan migrate\nEOF\n)\" --title t", false},
+		{"command after the substitution", "git push", "git commit -m \"$(cat <<'EOF'\nmsg\nEOF\n)\" && git push", true},
+		{"substitution run by bash -c", "artisan migrate", "bash -c \"$(cat <<'EOF'\nphp artisan migrate\nEOF\n)\"", true},
+		{"fed to eval", "artisan migrate", "eval \"$(cat <<'EOF'\nphp artisan migrate\nEOF\n)\"", true},
+		{"<< in a comment is not an operator", "cargo add", "# see <<X\ncargo add y\nX", true},
+		{"<< in arithmetic with a delimiter-like word", "cargo add", "echo $((1<<X))\ncargo add y\nX", true},
+		{"<< in a parameter expansion", "cargo add", "echo ${v/<<E/}\ncargo add y\nE/}", true},
+		{"a delimiter that is a variable", "cargo add", "cat <<$D\ncargo add y\n$D", true},
+		{"a terminator glued to )", "cargo add", "x=$(cat <<EOF\na\nEOF)\ncargo add y\nEOF", true},
+		{"an unclosed quote", "cargo add", "cat <<EOF 'x\ncargo add y\nEOF", true},
+	} {
+		if got := CommandMatches(tc.pattern, tc.command); got != tc.want {
+			t.Errorf("%s: CommandMatches(%q, %q) = %v, want %v", tc.name, tc.pattern, tc.command, got, tc.want)
+		}
+	}
+}
+
 // ruleMatchFixture lays out a project library, a global library, and a dotfiles-
 // dialect library under one temp dir.
 func ruleMatchFixture(t *testing.T) (root, global, extra string) {

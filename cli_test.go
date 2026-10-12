@@ -52,7 +52,7 @@ func TestRunLifecycleProject(t *testing.T) {
 	}
 
 	claude := readFile(t, filepath.Join(tmp, "CLAUDE.md"))
-	if !strings.Contains(claude, ".hydra/rules/controllers.md") {
+	if !strings.Contains(claude, "| controllers.md |") {
 		t.Errorf("CLAUDE.md missing the indexed rule:\n%s", claude)
 	}
 

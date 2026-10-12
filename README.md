@@ -167,8 +167,11 @@ hydra match --command 'php artisan test' --json
   `**/.env*` fires for a `.env` anywhere on disk.
 - **`commands`** match anywhere in the command line, but never starting or ending inside a
   word: `artisan test` matches `php artisan test`, `vendor/bin/pest` matches
-  `./vendor/bin/pest`, and `warden` does not match `wardenx`. Whitespace is collapsed, and
-  quoting is not parsed, so `echo "git tag"` matches `git tag`.
+  `./vendor/bin/pest`, and `warden` does not match `wardenx`. Whitespace is collapsed.
+  A heredoc body is data, so `cat > notes.md <<'EOF'` or a `git commit -m "$(cat <<'EOF'`
+  message never fires a rule for a command the text mentions; a body a shell reads
+  (`bash <<EOF`, `ssh host <<EOF`, `cat <<EOF | sh`, `bash -c "$(cat <<EOF`) is still
+  matched, and a heredoc the parser is unsure of is matched whole. Other quoting is not parsed, so `echo "git tag"` matches `git tag`.
 - **`triggers`** describe situations. Only an agent can judge those, so `match` never
   reports them.
 

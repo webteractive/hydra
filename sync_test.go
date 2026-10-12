@@ -32,7 +32,7 @@ func TestSyncWritesIndexAndBlocks(t *testing.T) {
 	}
 
 	index := readFile(t, filepath.Join(tmp, ".hydra", "rules", "index.md"))
-	if !strings.Contains(index, ".hydra/rules/rust.md") {
+	if !strings.Contains(index, "| rust.md |") {
 		t.Errorf("index missing the rule: %s", index)
 	}
 	for _, target := range []string{"CLAUDE.md", "AGENTS.md"} {

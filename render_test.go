@@ -28,7 +28,7 @@ func TestRenderIndexTable(t *testing.T) {
 	s := ResolveScope(false, "/work/app", "/home/u")
 	got := RenderIndex(s, sampleRules())
 
-	if !strings.Contains(got, "| auditing a Rust dependency | `**/Cargo.toml` · `cargo add` | .hydra/rules/rust-dependencies.md |") {
+	if !strings.Contains(got, "| auditing a Rust dependency | `**/Cargo.toml` · `cargo add` | rust-dependencies.md |") {
 		t.Errorf("missing indexed row:\n%s", got)
 	}
 	if strings.Contains(got, "secrets.md") {
@@ -60,12 +60,19 @@ func TestRenderBlockInlinesAlwaysRules(t *testing.T) {
 	if !strings.Contains(got, "grep -rin '<keyword>' .hydra/rules") {
 		t.Errorf("grep hint should use the relative dir:\n%s", got)
 	}
-	if !strings.Contains(got, ".hydra/rules/rust-dependencies.md") {
-		t.Errorf("indexed rule should appear in the table:\n%s", got)
+	if !strings.Contains(got, "| rust-dependencies.md |") {
+		t.Errorf("indexed rule should appear in the table by file name:\n%s", got)
+	}
+	if !strings.Contains(got, "Rule files are in `.hydra/rules`.") {
+		t.Errorf("block should name the directory the rule files are in:\n%s", got)
 	}
 }
 
-func TestRenderBlockGlobalUsesAbsolutePaths(t *testing.T) {
+// The global block loads from any working directory, so the library has to be
+// named absolutely. It is named once, above the table, rather than repeated in
+// every row: a long home path on each of thirty rows is a kilobyte of standing
+// context that tells the agent nothing new.
+func TestRenderBlockGlobalNamesTheLibraryOnceAbsolutely(t *testing.T) {
 	s := ResolveScope(true, "/work/app", "/home/u")
 	rules := []Rule{{
 		Name: "rust", Path: "/home/u/.hydra/rules/rust.md", Title: "Rust",
@@ -73,8 +80,11 @@ func TestRenderBlockGlobalUsesAbsolutePaths(t *testing.T) {
 	}}
 	got := RenderBlock(s, rules)
 
-	if !strings.Contains(got, "/home/u/.hydra/rules/rust.md") {
-		t.Errorf("global block should use absolute rule paths:\n%s", got)
+	if !strings.Contains(got, "Rule files are in `/home/u/.hydra/rules`.") {
+		t.Errorf("global block should name the library absolutely:\n%s", got)
+	}
+	if !strings.Contains(got, "| rust.md |") || strings.Contains(got, "/home/u/.hydra/rules/rust.md") {
+		t.Errorf("rows should carry the file name, not the absolute path:\n%s", got)
 	}
 	if !strings.Contains(got, "grep -rin '<keyword>' /home/u/.hydra/rules") {
 		t.Errorf("global grep hint should be absolute:\n%s", got)
@@ -88,6 +98,13 @@ func TestRenderBlockProjectStatesPrecedence(t *testing.T) {
 	s := ResolveScope(false, "/work/app", "/home/u")
 	if got := RenderBlock(s, sampleRules()); !strings.Contains(got, "override global rules") {
 		t.Errorf("project block should state precedence:\n%s", got)
+	}
+}
+
+func TestRenderBlockEmptyIndexNamesNoDirectory(t *testing.T) {
+	s := ResolveScope(false, "/work/app", "/home/u")
+	if got := RenderBlock(s, nil); strings.Contains(got, "Rule files are in") {
+		t.Errorf("an empty index has no rule files to locate:\n%s", got)
 	}
 }
 
