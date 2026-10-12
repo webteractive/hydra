@@ -22,8 +22,11 @@ invoked through the generated `$ability` router. Commands: `init`, `sync`, `add`
 - `govulncheck ./...` — must report no vulnerabilities (CI enforces). Findings here are
   usually standard-library ones cleared by a Go patch release rather than by code changes.
   `go.mod` carries a `toolchain` floor for exactly that reason: raise it when a new
-  advisory lands, and every build — local, CI, and release — honours it without anyone
-  needing the right Go installed system-wide.
+  advisory lands, and local builds honour it without anyone needing the right Go
+  installed system-wide. CI and release do not: `actions/setup-go` sets
+  `GOTOOLCHAIN=local`, so every workflow passes `check-latest: true` to install the
+  newest 1.26.x instead of the runner's cached patch. v0.3.2 shipped built on go1.26.8
+  before that was added.
 - `goreleaser check` — validates `.goreleaser.yaml` (CI enforces, so a broken release
   config surfaces on the PR rather than after a tag is pushed).
 - `go build -o hydra .` — local binary (gitignored).
