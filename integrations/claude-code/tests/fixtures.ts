@@ -1,7 +1,7 @@
 // A fake world beneath the hydra mod: a hydra binary answering by argv, a
 // filesystem, and the UI sinks, every call recorded for the test to read.
 
-import type { On } from 'claude-code'
+import type { CommandInfo, On } from 'claude-code'
 import { mock } from 'claude-code/testing'
 
 import type { AbilityInfo, AbilityMatch, DoctorReport, RuleMatch } from '../hooks/logic'
@@ -22,10 +22,14 @@ export type World = {
   // HYDRA_HOME as the session's environment has it.
   envHydraHome: string | undefined
   files: Record<string, string>
+  // The commands the session already has, before the mod registers any.
+  commands: CommandInfo[]
   // What the mod did.
   runs: string[][]
   // HYDRA_HOME each hydra process was given, '' when none.
   runEnv: string[]
+  // Names passed to $.command.register, in order.
+  registered: string[]
   toasts: string[]
   statuses: (string | undefined)[]
   logs: string[]
@@ -80,8 +84,10 @@ export function worldOf(on: On, start: Partial<World> = {}): World {
     hydraMissing: false,
     envHydraHome: undefined,
     files: {},
+    commands: [],
     runs: [],
     runEnv: [],
+    registered: [],
     toasts: [],
     statuses: [],
     logs: [],
@@ -93,7 +99,11 @@ export function worldOf(on: On, start: Partial<World> = {}): World {
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('session.root', () => ({ value: ROOT }))
   on('env.get', ($, e) => ({ value: e.name === 'HOME' ? HOME : e.name === 'HYDRA_HOME' ? w.envHydraHome : undefined }))
-  on('command.register', ($, e) => ({ value: { command: e.name } }))
+  on('command.register', ($, e) => {
+    w.registered.push(e.name)
+    return { value: { command: e.name } }
+  })
+  on('command.list', () => ({ value: w.commands }))
   on('ui.toast', ($, e) => {
     w.toasts.push(e.text)
     return { value: undefined }

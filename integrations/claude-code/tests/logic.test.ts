@@ -2,6 +2,8 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import {
   abilityBlock,
+  abilityCommandName,
+  abilityCommandTask,
   commandTouchesSecrets,
   diffFailures,
   failuresOf,
@@ -175,5 +177,19 @@ describe('doctor helpers', () => {
     expect(statusLine(['a', 'b', 'c', 'd'], [])).toBe('rules matched: a, b, c +1')
     expect(statusLine(['a'], [warn])).toBe('rule matched: a · ! run hydra sync --global')
     expect(statusLine([], [warn, { ...warn, severity: 'error' }])).toBe('✗ hydra doctor')
+  })
+})
+
+describe('ability command helpers', () => {
+  test('an ability is served as /ability-<name> while the name fits', () => {
+    expect(abilityCommandName('explain-code')).toBe('ability-explain-code')
+    expect(abilityCommandName('x'.repeat(56))).toBe(`ability-${'x'.repeat(56)}`)
+    expect(abilityCommandName('x'.repeat(57))).toBeUndefined()
+    expect(abilityCommandName('has space')).toBeUndefined()
+  })
+
+  test('the task is what was typed, or a request to run the ability', () => {
+    expect(abilityCommandTask('explain-code', '  auth.go ')).toBe('auth.go')
+    expect(abilityCommandTask('explain-code', '')).toBe('Run the explain-code ability.')
   })
 })

@@ -18,6 +18,17 @@ triggers (`Primetime!`), or `$ability <name>`, the mod attaches that ability's
 listed for the model to choose between; a bare `$ability` is left to the router skill's
 picker. Prompts too long to be a whole trigger never cost a `hydra` process.
 
+**Serves abilities as slash commands.** Every ability is also `/ability-<name> [task]`, listed
+in the typeahead with its description. Running one attaches the ability exactly as
+`$ability <name>` does, then submits the task as your own prompt (`Run the <name> ability.`
+when you typed none). The prefix keeps abilities clear of skills and commands that share a
+name, and of `/hydra`'s subcommands; Claude Code allows no `:` in a name a plugin registers.
+A name some other command already holds, or one over 64 characters with the prefix, gets no
+command and is logged once — `$ability <name>` still reaches it. The commands are registered
+at session start and again after a `hydra` command or an edit under the library, so a new
+ability shows up mid-session. A removed ability's command stays listed until the session
+ends (Claude Code has no unregister) and says the ability is gone when run.
+
 **Delivers rules.** Every Read, Edit, Write, NotebookEdit, and Bash call is checked with
 `hydra match` against rule `paths:` and `commands:`; matching rules are named on the status
 line. What happens next is `ruleMode`:
@@ -53,7 +64,7 @@ once when it is clean again — and keeps the fix on the status line meanwhile. 
 the fix itself.
 
 **`/hydra`** prints the hydra build, the libraries read, the doctor's verdict, the rules
-fired and delivered, and the last ability routed. `/hydra doctor` re-runs the doctors;
+fired and delivered, how many ability commands are registered, and the last ability routed. `/hydra doctor` re-runs the doctors;
 `/hydra match <path-or-command>` shows what a file or command would fire.
 
 ## Install
@@ -78,6 +89,7 @@ Set under `pluginConfigs.hydra.options` in settings; each is also a `/config` ro
 | `hydraPath` | `hydra` | The binary; `~/.local/bin/hydra` is tried when it cannot start. |
 | `hydraHome` | `""` | The global library for the mod's hydra processes, handed to them as `HYDRA_HOME`. Empty: hydra's own resolution, `HYDRA_HOME` else `~/.hydra`. |
 | `abilityRouting` | `true` | Route abilities. |
+| `abilityCommands` | `true` | Serve every ability as `/ability-<name>`. |
 | `ruleMode` | `enforce` | `off`, `status`, `inject`, or `enforce` (above). |
 | `ruleLibraries` | `""` | More rules directories, `:`-separated, `~/` allowed — e.g. `~/AI/dotfiles/rules`. The project and global hydra libraries are always read. |
 | `maxInjectChars` | `12000` | A longer rule or ability is delivered as a pointer to its file. |

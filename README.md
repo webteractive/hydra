@@ -275,8 +275,8 @@ prose and any skill hydra does not own are left untouched, and `hydra doctor` pl
 
 `integrations/claude-code/` is a Claude Code mod that does the mechanical half of this
 routing in code: it routes a prompt that is exactly an ability's name or trigger to that
-ability, delivers a rule the first time a file or command its `paths` / `commands` cover is
-touched, and runs the doctors so a stale library is named with the command that fixes it.
+ability, serves every ability as a `/ability-<name>` slash command, delivers a rule the first
+time a file or command its `paths` / `commands` cover is touched, and runs the doctors so a stale library is named with the command that fixes it.
 It calls the CLI for every decision and changes nothing for other harnesses. Load it with
 `claude --plugin-dir integrations/claude-code` or `CLAUDE_CODE_PLUGIN_DIRS`; see its
 [README](integrations/claude-code/README.md).

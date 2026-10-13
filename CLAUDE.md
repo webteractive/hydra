@@ -81,8 +81,8 @@ invoked through the generated `$ability` router. Commands: `init`, `sync`, `add`
   the Gemini wiring dropped after v0.2. Only sentinel-delimited blocks and files still
   carrying hydra's ownership marker are touched.
 - `integrations/claude-code/` — the Claude Code mod (TypeScript function hooks, no npm
-  dependencies). It routes abilities, delivers matched rules, and runs the doctors by
-  calling the CLI; it reimplements no hydra logic. See its README.
+  dependencies). It routes abilities, serves each as a `/ability-<name>` command, delivers
+  matched rules, and runs the doctors by calling the CLI; it reimplements no hydra logic. See its README.
 - `VERSION` — embedded default version; release builds inject the tag via
   `-ldflags "-X main.injectedVersion=..."` (see `.goreleaser.yaml`).
 

@@ -183,6 +183,25 @@ export function unknownAbilityBlock(name: string, known: readonly string[]): str
   )
 }
 
+// Every ability is also a slash command, `/ability-<name>`. The prefix keeps
+// them clear of skills and commands sharing an ability's name, and of
+// `/hydra`'s own subcommands; a colon is not allowed in a registered name.
+export const ABILITY_COMMAND_PREFIX = 'ability-'
+
+// abilityCommandName is the command an ability is served as, or undefined
+// when it cannot be one: a command name is letters, digits, `_` and `-`, up to
+// 64 characters.
+export function abilityCommandName(ability: string): string | undefined {
+  const name = ABILITY_COMMAND_PREFIX + ability
+  return /^[A-Za-z0-9_-]{1,64}$/.test(name) ? name : undefined
+}
+
+// abilityCommandTask is the prompt an ability command submits: what the user
+// typed after the command, or a plain request to run the ability.
+export function abilityCommandTask(ability: string, args: string): string {
+  return args.trim() || `Run the ${ability} ability.`
+}
+
 // ---------------------------------------------------------------------------
 // Feature 2: rules
 

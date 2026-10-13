@@ -29,6 +29,13 @@
       "required": false,
       "default": true
     },
+    "abilityCommands": {
+      "type": "boolean",
+      "title": "Ability commands",
+      "description": "Serve every ability as a slash command, /ability-<name> [task]. A name another command already holds is left to it.",
+      "required": false,
+      "default": true
+    },
     "ruleMode": {
       "type": "string",
       "title": "Rule delivery",

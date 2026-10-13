@@ -11,8 +11,11 @@ import type { EngineInterface, On, PluginOptions, Timer, ToolCallResult } from '
 
 import type { HydraFailure } from '../types'
 import {
+  ABILITY_COMMAND_PREFIX,
   USER_ORIGINS,
   abilityBlock,
+  abilityCommandName,
+  abilityCommandTask,
   candidatesBlock,
   commandTouchesSecrets,
   diffFailures,
@@ -93,6 +96,7 @@ function optionsOf(options: PluginOptions) {
     hydraPath: typeof options.hydraPath === 'string' && options.hydraPath.trim() ? options.hydraPath.trim() : 'hydra',
     hydraHome: typeof options.hydraHome === 'string' ? options.hydraHome.trim() : '',
     abilityRouting: options.abilityRouting !== false,
+    abilityCommands: options.abilityCommands !== false,
     ruleMode: ruleModeOf(options.ruleMode),
     ruleLibraries: typeof options.ruleLibraries === 'string' ? options.ruleLibraries : '',
     maxInjectChars: typeof options.maxInjectChars === 'number' && options.maxInjectChars > 0 ? options.maxInjectChars : 12000,
@@ -111,6 +115,10 @@ let env: Env | undefined
 let abilityCache: AbilityInfo[] | undefined
 const matchMemo = new Map<string, RuleMatch[]>()
 let doctorTimer: Timer | undefined
+// The /ability-<name> commands this load registered, and whether the ability
+// list may have changed since.
+const abilityCommands = new Set<string>()
+let commandsStale = false
 
 // --- hydra --------------------------------------------------------------
 
@@ -196,6 +204,7 @@ async function abilities($: $): Promise<AbilityInfo[] | undefined> {
 function invalidate(): void {
   abilityCache = undefined
   matchMemo.clear()
+  commandsStale = true
 }
 
 // --- status line ----------------------------------------------------------
@@ -241,6 +250,50 @@ async function route($: $, text: string): Promise<Routed | undefined> {
   }
   const names = matches.map(m => m.ability)
   return { block: candidatesBlock(matches), toast: `⚡ abilities: ${names.join(' | ')}`, ability: names.join(' | ') }
+}
+
+// registerAbilityCommands serves each ability as /ability-<name>. A name some
+// other command already holds is left to it, and so is one too long to be a
+// command; both stay reachable through $ability. Registering again replaces a
+// command, so a refresh picks up new abilities and changed descriptions. There
+// is no unregister: a removed ability's command stays until the session ends,
+// and running it says the ability is gone.
+async function registerAbilityCommands($: $): Promise<void> {
+  commandsStale = false
+  if (!opt.abilityCommands || !env) return
+  const listed = await abilities($)
+  if (!listed) return
+  const held = await $.command.list().then(
+    list => new Set(list.filter(c => c.source !== 'plugin' || (c.plugin !== undefined && c.plugin !== 'hydra')).map(c => c.name)),
+    () => new Set<string>(),
+  )
+  const skipped: string[] = []
+  for (const a of listed) {
+    const name = abilityCommandName(a.name)
+    if (name === undefined || held.has(name)) {
+      skipped.push(a.name)
+      continue
+    }
+    const registered = await $.command.register({ name, description: a.description, argumentHint: '[task]' }).then(() => true, () => false)
+    if (registered) abilityCommands.add(name)
+    else skipped.push(a.name)
+  }
+  if (skipped.length) $.ui.log(`hydra: no /${ABILITY_COMMAND_PREFIX}<name> command for ${skipped.join(', ')} (name taken or too long); use $ability <name>`)
+}
+
+async function runAbilityCommand($: $, command: string, args: string): Promise<{ text: string; context?: string[] }> {
+  const ability = command.slice(ABILITY_COMMAND_PREFIX.length)
+  const routed = await route($, `$ability ${ability}`).catch(() => undefined)
+  if (!routed) return { text: `hydra did not answer, so /${command} did nothing.` }
+  if (!routed.ability) return { text: `hydra: there is no ability named ${ability} any more; /${command} lasts until the session ends.` }
+  await update($, LAST_ABILITY, () => routed.ability)
+  // The block is recorded beside the command's output, and the task follows as
+  // a turn of its own, read as the user's own words. It is submitted from a
+  // timer: the host refuses a submit made inside a command.run hook, which
+  // would wait on the very command it is answering.
+  const task = abilityCommandTask(ability, args)
+  $.clock.after(0, () => void $.prompt.submit({ text: task, asUser: true }).catch(() => undefined))
+  return { text: routed.toast, context: [routed.block] }
 }
 
 // --- feature 2: rules ------------------------------------------------------
@@ -357,6 +410,7 @@ function scheduleDoctor($: $, ms: number): void {
   doctorTimer = $.clock.after(ms, () => {
     doctorTimer = undefined
     runDoctors($).catch(() => undefined)
+    if (commandsStale) registerAbilityCommands($).catch(() => undefined)
   })
 }
 
@@ -406,6 +460,7 @@ async function summary($: $): Promise<string> {
     `global library: ${env.globalHome ?? 'unknown'} (${env.homeSource === 'default' ? 'default: HYDRA_HOME is not set' : `from ${env.homeSource}`})`,
     `rule delivery: ${opt.ruleMode}${env.canMatch ? '' : " (off: this hydra has no 'match')"}`,
     `ability routing: ${opt.abilityRouting ? 'on' : 'off'}`,
+    `ability commands: ${opt.abilityCommands ? `${abilityCommands.size} registered as /${ABILITY_COMMAND_PREFIX}<name>` : 'off'}`,
   ]
   if (env.libraries.length) {
     lines.push('', 'Rule libraries')
@@ -443,6 +498,8 @@ export function register(on: On, options: PluginOptions): void {
   abilityCache = undefined
   matchMemo.clear()
   doctorTimer = undefined
+  abilityCommands.clear()
+  commandsStale = false
 
   // --- hooks -----------------------------------------------------------------
 
@@ -451,6 +508,7 @@ export function register(on: On, options: PluginOptions): void {
     await $.command
       .register({ name: 'hydra', description: 'hydra status: doctor, rules fired, last ability', argumentHint: '[doctor | match <path-or-command>]' })
       .catch(() => undefined)
+    await registerAbilityCommands($).catch(() => undefined)
     // Never awaited: the first prompt does not wait on three doctors.
     if (env) scheduleDoctor($, 0)
     return next(e)
@@ -521,4 +579,10 @@ export function register(on: On, options: PluginOptions): void {
     if (args === 'match' || args.startsWith('match ')) return { text: await matchCommand($, args.slice(5).trim()) }
     return { text: await summary($) }
   })
+
+  // A command of another's that happens to share the prefix is passed on.
+  on('command.run', { command: /^ability-/ }, async ($, e, next) => {
+    if (!abilityCommands.has(e.command)) return next(e)
+    return runAbilityCommand($, e.command, e.args)
+  }).catch(($, e, next) => (next.called || !abilityCommands.has(e.command) ? next(e) : { text: `hydra: /${e.command} failed.` }))
 }

@@ -148,6 +148,107 @@ describe('ability routing', () => {
   })
 })
 
+describe('ability commands', () => {
+  const EXPLAIN = { name: 'explain-code', description: 'Explain unfamiliar code.', triggers: [], path: `${GLOBAL}/abilities/explain-code/ABILITY.md` }
+  const NAMED = { ability: 'explain-code', kind: 'name' as const, description: EXPLAIN.description, path: EXPLAIN.path }
+
+  function commandWorld(on: On) {
+    const w = worldOf(on, {
+      abilities: [EXPLAIN],
+      abilityMatches: { 'explain-code': [NAMED] },
+      files: { [EXPLAIN.path]: '---\nname: explain-code\n---\n\n# Explain\n\nRead first.\n' },
+    })
+    const submitted: PromptSubmitInput[] = []
+    on('prompt.submit', ($, e) => {
+      submitted.push(e)
+      return { text: e.text, context: e.context }
+    })
+    return { w, submitted }
+  }
+
+  test('each ability is registered as /ability-<name>', async ($, on) => {
+    const long = { ...EXPLAIN, name: 'x'.repeat(57) }
+    const taken = { ...EXPLAIN, name: 'summarize-git-changes' }
+    const w = worldOf(on, {
+      abilities: [EXPLAIN, long, taken],
+      commands: [{ name: 'ability-summarize-git-changes', description: 'mine', source: 'user' }],
+    })
+
+    await $.session.start(SESSION)
+
+    expect(w.registered).toEqual(['hydra', 'ability-explain-code'])
+    expect(w.logs.some(l => l.includes(`no /ability-<name> command for ${long.name}, summarize-git-changes`))).toBe(true)
+  })
+
+  test('a command attaches the ability and submits the task as the user', async ($, on) => {
+    const { w, submitted } = commandWorld(on)
+    await $.session.start(SESSION)
+
+    const out = await $.command.run({ command: 'ability-explain-code', args: 'walk me through auth.go' } as never)
+    await w.clock.settle()
+
+    expect(out.text).toBe('⚡ ability: explain-code')
+    expect(out.context?.[0]).toContain('<hydra-ability name="explain-code" matched-by="exact ability name"')
+    expect(out.context?.[0]).toContain('Read first.')
+    expect(submitted.map(s => s.text)).toEqual(['walk me through auth.go'])
+    expect(submitted[0]?.context, 'the submitted task is not routed again').toBeUndefined()
+    expect(submitted[0]?.origin).toMatchObject({ kind: 'plugin', asUser: true })
+  })
+
+  test('a bare command asks for the ability itself', async ($, on) => {
+    const { w, submitted } = commandWorld(on)
+    await $.session.start(SESSION)
+
+    await $.command.run({ command: 'ability-explain-code', args: '' } as never)
+    await w.clock.settle()
+
+    expect(submitted.map(s => s.text)).toEqual(['Run the explain-code ability.'])
+  })
+
+  test('a removed ability says so and submits nothing', async ($, on) => {
+    const { w, submitted } = commandWorld(on)
+    await $.session.start(SESSION)
+    w.abilityMatches = {}
+
+    const out = await $.command.run({ command: 'ability-explain-code', args: '' } as never)
+    await w.clock.settle()
+
+    expect(out.text).toContain('no ability named explain-code any more')
+    expect(out.context).toBeUndefined()
+    expect(submitted).toEqual([])
+  })
+
+  test('a hydra command refreshes the commands', async ($, on) => {
+    const { w } = commandWorld(on)
+    toolsSucceed(on)
+    await $.session.start(SESSION)
+    w.abilities = [...w.abilities, { ...EXPLAIN, name: 'brainstorm-test-cases' }]
+
+    await $.tool.call(BASH('hydra ability sync'))
+    await w.clock.advance(1500)
+    await w.clock.settle()
+
+    expect(w.registered).toContain('ability-brainstorm-test-cases')
+  })
+
+  test('another command sharing the prefix is passed on', async ($, on) => {
+    commandWorld(on)
+    on('command.run', () => ({ text: 'theirs' }))
+    await $.session.start(SESSION)
+
+    const out = await $.command.run({ command: 'ability-elsewhere' } as never)
+
+    expect(out.text).toBe('theirs')
+  })
+
+  test('the commands can be turned off', { options: { abilityCommands: false } }, async ($, on) => {
+    const { w } = commandWorld(on)
+    await $.session.start(SESSION)
+
+    expect(w.registered).toEqual(['hydra'])
+  })
+})
+
 const EDIT = (file_path: string) => ({ tool: 'Edit' as const, file_path, old_string: 'a', new_string: 'b' })
 const READ = (file_path: string) => ({ tool: 'Read' as const, file_path })
 const BASH = (command: string) => ({ tool: 'Bash' as const, command })
