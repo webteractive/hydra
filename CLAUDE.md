@@ -10,7 +10,7 @@ lazy-loaded abilities for AI coding agents. Rules live in `.hydra/rules/` (or
 name, triggers, and description are inlined into the managed instruction block while the
 authored body stays on disk until selected, and they can be matched by the agent or
 invoked through the generated `$ability` router. Commands: `init`, `sync`, `add`, `new`, `list`, `doctor`,
-`match`, `ability init|sync|new|list|match|doctor`, `self-update`.
+`match`, `ability init|sync|new|import|list|match|doctor`, `self-update`.
 
 ## Build & test
 - `go test ./...` — full suite (temp-dir based, no network). `TestMain` (`main_test.go`)
@@ -77,6 +77,10 @@ invoked through the generated `$ability` router. Commands: `init`, `sync`, `add`
   native router adapters.
 - `ability_lifecycle.go` / `ability_list.go` / `ability_doctor.go` / `ability_cmd.go` —
   the global ability command group.
+- `ability_import.go` — `hydra ability import`: turns Agent Skill directories into
+  ability bundles. Validates every path before writing, syncs before removing any source,
+  and takes the new bundles back out if the sync fails. A source reached through a link
+  loses only the link; its target may belong to skillset or another tool.
 - `teardown.go` — removes artifacts hydra no longer owns: v0.1 skill-curator files and
   the Gemini wiring dropped after v0.2. Only sentinel-delimited blocks and files still
   carrying hydra's ownership marker are touched.
@@ -90,8 +94,9 @@ invoked through the generated `$ability` router. Commands: `init`, `sync`, `add`
 - **`CLAUDE.md` and `AGENTS.md` are mirrors** — identical body, only the top title/intro
   line differs. Any edit to one MUST be replicated to the other in the same change.
 - Stdlib + cobra + `gopkg.in/yaml.v3` only — keep the dependency surface minimal.
-- **No MCP.** hydra is CLI-only by design; `hydra add` records rules and
-  `hydra ability new` scaffolds authored ability bundles.
+- **No MCP.** hydra is CLI-only by design; `hydra add` records rules,
+  `hydra ability new` scaffolds authored ability bundles, and `hydra ability import`
+  converts existing skills into them.
 - **Only the library moves.** `HYDRA_HOME` relocates `rules/` and `abilities/`; `Scope.Base`
   stays the real home directory, because `detect.go` finds `~/.claude/CLAUDE.md` through it.
   Project scope ignores the override outright — a project rule travels with its repository.

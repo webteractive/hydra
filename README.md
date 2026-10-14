@@ -121,6 +121,7 @@ Scripts get the same two facts as `home` and `home_source` in `--json`.
 | `hydra ability init` | Initialize the global abilities catalog and harness routers. |
 | `hydra ability sync` | Validate abilities and refresh generated wiring. |
 | `hydra ability new <name>` | Scaffold `~/.hydra/abilities/<name>/ABILITY.md`. |
+| `hydra ability import <skill-dir>... [--keep]` | Turn Agent Skills into abilities, moving them unless `--keep`. |
 | `hydra ability list [--json]` | Show descriptions and invocation hints for people; use `--json` for agents and scripts. |
 | `hydra ability match <phrase>` | Check which ability a phrase would invoke. Exits non-zero when nothing matches. |
 | `hydra ability doctor [--json]` | Check the global catalog, blocks, and routers. |
@@ -255,6 +256,32 @@ conversation that settles it, so it does not guess.
 An exact ability-name match is decisive and suppresses trigger candidates, so
 `hydra ability doctor` warns about a trigger that normalizes to some *other* ability's
 name — that trigger can never fire. It also warns about abilities with no triggers.
+
+#### Importing skills
+
+An Agent Skill is already most of an ability: a directory holding a `SKILL.md` with
+`name` and `description` frontmatter, plus optional supporting files. `hydra ability
+import` converts one or more of them:
+
+```bash
+hydra ability import ~/.claude/skills/bug-report-format ~/.claude/skills/testing-notes
+hydra ability import --keep ~/.agents/skills/adr   # copy, leaving the skill installed
+```
+
+Each skill is copied to `~/.hydra/abilities/<name>/` with `SKILL.md` renamed to
+`ABILITY.md`, the library is synced, and then the skill is removed, so it is not loaded
+twice — once as a skill, once as an ability. `--keep` leaves it where it is.
+
+- The ability takes the skill's `name`, or its directory name when `name` is absent.
+- A multi-line description is folded onto one line; every other frontmatter field is kept.
+- Skills have no triggers, so imported abilities start without any. Add them, run
+  `hydra ability sync`, and prove them with `hydra ability match`.
+- Every path is checked before anything is written. A missing `SKILL.md`, a name already
+  in the library or given twice, a link inside the bundle, or hydra's own `ability`
+  router refuses the whole import. No skill is removed until the sync succeeds.
+- A skill reached through a link (`~/.claude/skills/x → ~/.skillset/skills/x`) has only
+  the link removed. Its target is left for whatever tool owns it, and the output names
+  it, since other links to it still load it as a skill.
 
 Hydra also installs one small native router skill for each detected supported harness.
 Use `$ability <name>` when you want deterministic, explicit loading. A bare `$ability`

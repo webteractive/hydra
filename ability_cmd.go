@@ -69,10 +69,38 @@ func newAbilityCmd(out io.Writer) *cobra.Command {
 		},
 	})
 
+	cmd.AddCommand(newAbilityImportCmd(out))
 	cmd.AddCommand(newAbilityListCmd(out))
 	cmd.AddCommand(newAbilityMatchCmd(out))
 	cmd.AddCommand(newAbilityDoctorCmd(out))
-	addForceFlag(cmd, "init", "sync", "new")
+	addForceFlag(cmd, "init", "sync", "new", "import")
+	return cmd
+}
+
+func newAbilityImportCmd(out io.Writer) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "import <skill-dir>...",
+		Short: "Turn Agent Skills into abilities",
+		Long: "Import each skill directory (one holding a SKILL.md) into\n" +
+			"~/.hydra/abilities/<name>/ABILITY.md with its supporting files, then sync\n" +
+			"and remove the skill. Pass --keep to leave the skill where it is.\n\n" +
+			"The ability is named after the skill's name, else its directory. A\n" +
+			"multi-line description is folded onto one line; every other field is kept.\n" +
+			"Skills carry no triggers, so add some before relying on one.\n\n" +
+			"Every path is checked before anything is written, and no skill is removed\n" +
+			"until the sync succeeds. A skill reached through a link has only the link\n" +
+			"removed: its target is left for whatever tool owns it.",
+		Args: cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			s, err := abilityScopeFromCmd(cmd)
+			if err != nil {
+				return err
+			}
+			keep, _ := cmd.Flags().GetBool("keep")
+			return AbilityImport(s, args, keep, out)
+		},
+	}
+	cmd.Flags().Bool("keep", false, "leave each skill in place after importing it")
 	return cmd
 }
 
