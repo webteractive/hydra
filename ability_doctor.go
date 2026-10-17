@@ -50,13 +50,15 @@ func AbilityDoctor(s AbilityScope) DoctorReport {
 	currentIndex, _ := os.ReadFile(indexPath)
 	fixable("abilities index.md is current", string(currentIndex) == RenderAbilityIndex(abilities), sevWarning, "%s", "sync")
 
+	// A direct-only ability never relies on description matching: without
+	// triggers it is still reached by its exact name or `$ability <name>`.
 	var untriggered []string
 	for _, ability := range abilities {
-		if len(ability.Triggers) == 0 {
+		if len(ability.Triggers) == 0 && ability.Invocation != abilityInvocationExplicit {
 			untriggered = append(untriggered, ability.Name)
 		}
 	}
-	add("every ability has triggers", len(untriggered) == 0, sevWarning,
+	add("every auto ability has triggers", len(untriggered) == 0, sevWarning,
 		"these rely on description matching alone and may never fire: "+strings.Join(untriggered, ", "))
 
 	// A name match is decisive, so a trigger that normalizes to some other

@@ -67,6 +67,42 @@ func TestAbilityDoctorFlagsTriggersShadowedByAnAbilityName(t *testing.T) {
 	}
 }
 
+// An untriggered auto ability can only be found by description; a direct-only
+// one never is, so its missing triggers are not a defect.
+func TestAbilityDoctorWarnsOnlyAutoAbilitiesWithoutTriggers(t *testing.T) {
+	home := t.TempDir()
+	s := ResolveAbilityScope(home)
+	mustWrite(t, filepath.Join(s.AbilitiesDir, "deploy-prod", abilityFilename),
+		"---\nname: deploy-prod\ndescription: Deploy to production.\ninvocation: explicit\n---\n")
+	mustWrite(t, filepath.Join(s.AbilitiesDir, "explain-code", abilityFilename),
+		"---\nname: explain-code\ndescription: Explain code.\n---\n")
+
+	var check *DoctorCheck
+	checks := AbilityDoctor(s).Checks
+	for i, c := range checks {
+		if c.Name == "every auto ability has triggers" {
+			check = &checks[i]
+		}
+	}
+	if check == nil {
+		t.Fatal("expected the trigger check to run")
+	}
+	if check.OK || !strings.Contains(check.Detail, "explain-code") {
+		t.Errorf("an untriggered auto ability should be named: %+v", *check)
+	}
+	if strings.Contains(check.Detail, "deploy-prod") {
+		t.Errorf("a direct-only ability does not rely on description matching: %q", check.Detail)
+	}
+
+	mustWrite(t, filepath.Join(s.AbilitiesDir, "explain-code", abilityFilename),
+		"---\nname: explain-code\ndescription: Explain code.\ntriggers:\n  - explain this\n---\n")
+	for _, c := range AbilityDoctor(s).Checks {
+		if c.Name == "every auto ability has triggers" && !c.OK {
+			t.Errorf("only a direct-only ability lacks triggers, which is fine: %q", c.Detail)
+		}
+	}
+}
+
 func TestAbilityDoctorAllowsOverlappingTriggers(t *testing.T) {
 	home := t.TempDir()
 	s := ResolveAbilityScope(home)

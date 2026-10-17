@@ -27,7 +27,9 @@ A name some other command already holds, or one over 64 characters with the pref
 command and is logged once — `$ability <name>` still reaches it. The commands are registered
 at session start and again after a `hydra` command or an edit under the library, so a new
 ability shows up mid-session. A removed ability's command stays listed until the session
-ends (Claude Code has no unregister) and says the ability is gone when run.
+ends (Claude Code has no unregister) and says the ability is gone when run. Only you can run
+these commands: Claude Code leaves a command a plugin registers out of the model's Skill
+tool, so an ability marked `invocation: explicit` gets one like any other.
 
 **Delivers rules.** Every Read, Edit, Write, NotebookEdit, and Bash call is checked with
 `hydra match` against rule `paths:` and `commands:`; matching rules are named on the status

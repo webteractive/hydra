@@ -221,7 +221,8 @@ semantic selection, so it loads only on its exact name, an exact trigger, or
 `$ability <name>`. Use it for a workflow that should never start because a request merely
 resembles it, such as a deploy. Any other value fails `hydra ability sync` and
 `hydra ability doctor`, and `hydra ability list --json` reports `"invocation": "explicit"`
-for these abilities.
+for these abilities. Doctor's warning about abilities without triggers skips them: they
+never rely on their description, so their exact name is enough.
 
 Abilities load the way agent skills do. `hydra ability sync` inlines each ability's name,
 triggers, and description into the managed instruction block, and keeps the same catalog
