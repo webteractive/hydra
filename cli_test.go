@@ -220,6 +220,47 @@ func TestAbilityListJSONExposesTriggers(t *testing.T) {
 	}
 }
 
+func TestAbilityListJSONExposesInvocation(t *testing.T) {
+	home := t.TempDir()
+	isolateHome(t, home)
+	if _, err := runCLI(t, "ability", "init"); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(home, ".hydra", "abilities")
+	mustWrite(t, filepath.Join(dir, "deploy-prod", abilityFilename),
+		"---\nname: deploy-prod\ndescription: Deploy.\ninvocation: explicit\n---\n\n# Deploy\n")
+	mustWrite(t, filepath.Join(dir, "explain-code", abilityFilename),
+		"---\nname: explain-code\ndescription: Explain.\n---\n\n# Explain\n")
+	if _, err := runCLI(t, "ability", "sync"); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := runCLI(t, "ability", "list", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw []map[string]any
+	if err := json.Unmarshal([]byte(out), &raw); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if len(raw) != 2 {
+		t.Fatalf("want 2 abilities, got %+v", raw)
+	}
+	for _, entry := range raw {
+		invocation, present := entry["invocation"]
+		switch entry["name"] {
+		case "deploy-prod":
+			if invocation != "explicit" {
+				t.Errorf("deploy-prod invocation = %v, want explicit", invocation)
+			}
+		case "explain-code":
+			if present {
+				t.Errorf("auto ability should omit invocation, got %v", invocation)
+			}
+		}
+	}
+}
+
 // The command listing is how anyone learns what a tool does.
 func TestEveryCommandHasHelp(t *testing.T) {
 	var walk func(c *cobra.Command, path string)

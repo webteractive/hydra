@@ -13,12 +13,22 @@ import (
 
 const abilityFilename = "ABILITY.md"
 
+// Invocation values. Auto, the default, lets an agent select the ability
+// semantically from its description; explicit keeps it out of that and loads
+// it only on its exact name, an exact trigger, or `$ability <name>`. Auto is
+// stored as the empty string so it stays out of JSON and needs no marker.
+const (
+	abilityInvocationAuto     = "auto"
+	abilityInvocationExplicit = "explicit"
+)
+
 // Ability is one optional workflow bundle. Path always points at the authored
 // ABILITY.md; supporting resources live beside it and are not parsed by Hydra.
 type Ability struct {
 	Name        string   `json:"name"`
 	Description string   `json:"description"`
 	Triggers    []string `json:"triggers,omitempty"`
+	Invocation  string   `json:"invocation,omitempty"`
 	Path        string   `json:"path"`
 	Body        string   `json:"-"`
 }
@@ -27,6 +37,7 @@ type abilityFrontmatter struct {
 	Name        string   `yaml:"name"`
 	Description string   `yaml:"description"`
 	Triggers    []string `yaml:"triggers,omitempty"`
+	Invocation  string   `yaml:"invocation,omitempty"`
 }
 
 // ParseAbility validates the metadata Hydra needs for discovery. Unknown
@@ -66,6 +77,13 @@ func ParseAbility(bundleName, path, content string) (Ability, error) {
 	}
 	if strings.ContainsAny(a.Description, "\r\n") {
 		problems = append(problems, fmt.Errorf("description must be one line"))
+	}
+	switch invocation := strings.ToLower(strings.TrimSpace(fm.Invocation)); invocation {
+	case "", abilityInvocationAuto:
+	case abilityInvocationExplicit:
+		a.Invocation = abilityInvocationExplicit
+	default:
+		problems = append(problems, fmt.Errorf("invocation must be %q or %q: %q", abilityInvocationAuto, abilityInvocationExplicit, fm.Invocation))
 	}
 	if len(problems) > 0 {
 		return Ability{}, fmt.Errorf("%s: %w", path, errors.Join(problems...))

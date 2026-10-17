@@ -195,8 +195,9 @@ func renderAbilityMatchText(out io.Writer, phrase string, matches []AbilityMatch
 	if len(matches) == 0 {
 		fmt.Fprintf(out, "%q → no name or trigger match\n\n", phrase)
 		fmt.Fprintln(out, "An agent could still select semantically by description, but nothing here")
-		fmt.Fprintln(out, "guarantees it. To make this phrase deterministic, add it to the ability's")
-		fmt.Fprintln(out, "triggers: list, then run hydra ability sync.")
+		fmt.Fprintln(out, "guarantees it, and an ability marked **Direct only.** (invocation: explicit) is")
+		fmt.Fprintln(out, "never selected that way. To make this phrase deterministic, add it to the")
+		fmt.Fprintln(out, "ability's triggers: list, then run hydra ability sync.")
 		fmt.Fprintln(out, "\nFor agents and scripts: hydra ability match <phrase> --json")
 		return
 	}

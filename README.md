@@ -214,6 +214,15 @@ triggers:
 ---
 ```
 
+An optional `invocation` field decides whether the agent may pick the ability on its own.
+`auto`, the default, allows semantic selection from the description. `explicit` opts out:
+the ability's row is marked **Direct only.** and the managed instruction excludes it from
+semantic selection, so it loads only on its exact name, an exact trigger, or
+`$ability <name>`. Use it for a workflow that should never start because a request merely
+resembles it, such as a deploy. Any other value fails `hydra ability sync` and
+`hydra ability doctor`, and `hydra ability list --json` reports `"invocation": "explicit"`
+for these abilities.
+
 Abilities load the way agent skills do. `hydra ability sync` inlines each ability's name,
 triggers, and description into the managed instruction block, and keeps the same catalog
 at `~/.hydra/abilities/index.md`. Only the authored body stays lazy — it is read when the
@@ -222,8 +231,8 @@ be selected at all.
 
 Before selecting another reusable workflow, the managed instruction requires the agent to
 check that table. An exact normalized ability-name match or a trigger match is an explicit
-invocation and takes priority; otherwise the agent can select an ability semantically.
-Either way it then loads the complete `ABILITY.md`.
+invocation and takes priority; otherwise the agent can select an ability semantically,
+unless it is marked **Direct only.** Either way it then loads the complete `ABILITY.md`.
 
 Only names, triggers, and descriptions are inlined — the `File` column stays in
 `index.md`, since every ability resolves to `~/.hydra/abilities/<name>/ABILITY.md` and
@@ -274,6 +283,9 @@ twice — once as a skill, once as an ability. `--keep` leaves it where it is.
 
 - The ability takes the skill's `name`, or its directory name when `name` is absent.
 - A multi-line description is folded onto one line; every other frontmatter field is kept.
+- A skill with `disable-model-invocation: true` is imported with `invocation: explicit`
+  added, so it stays out of semantic selection as an ability too. A skill that already
+  sets `invocation` keeps it as authored.
 - Skills have no triggers, so imported abilities start without any. Add them, run
   `hydra ability sync`, and prove them with `hydra ability match`.
 - Every path is checked before anything is written. A missing `SKILL.md`, a name already

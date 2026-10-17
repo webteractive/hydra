@@ -41,6 +41,43 @@ func TestParseAbilityValidation(t *testing.T) {
 	}
 }
 
+func TestParseAbilityInvocation(t *testing.T) {
+	cases := map[string]struct {
+		field string
+		want  string
+	}{
+		"omitted":              {"", ""},
+		"auto":                 {"invocation: auto\n", ""},
+		"explicit":             {"invocation: explicit\n", "explicit"},
+		"mixed case and space": {"invocation: \"  Explicit \"\n", "explicit"},
+		"mixed case auto":      {"invocation: AUTO\n", ""},
+	}
+	for label, c := range cases {
+		content := "---\nname: example\ndescription: Useful.\n" + c.field + "---\n"
+		ability, err := ParseAbility("example", "/tmp/example/ABILITY.md", content)
+		if err != nil {
+			t.Errorf("%s: %v", label, err)
+			continue
+		}
+		if ability.Invocation != c.want {
+			t.Errorf("%s: Invocation = %q, want %q", label, ability.Invocation, c.want)
+		}
+	}
+}
+
+func TestParseAbilityRejectsUnknownInvocation(t *testing.T) {
+	content := "---\nname: example\ndescription: Useful.\ninvocation: manual\n---\n"
+	_, err := ParseAbility("example", "/tmp/example/ABILITY.md", content)
+	if err == nil {
+		t.Fatal("expected an unknown invocation to be a validation error")
+	}
+	for _, want := range []string{"/tmp/example/ABILITY.md", "invocation", "manual"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error missing %q: %v", want, err)
+		}
+	}
+}
+
 func TestLoadAbilitiesSortsAndAggregatesErrors(t *testing.T) {
 	dir := t.TempDir()
 	mustWrite(t, filepath.Join(dir, "zebra", abilityFilename), validAbility("zebra", "Last."))

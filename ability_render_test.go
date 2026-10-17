@@ -55,6 +55,47 @@ func TestRenderAbilityBlockInlinesTheCatalog(t *testing.T) {
 	}
 }
 
+func TestRenderAbilityTableMarksDirectOnlyAbilities(t *testing.T) {
+	s := ResolveAbilityScope("/home/user")
+	abilities := []Ability{
+		{
+			Name:        "deploy-prod",
+			Description: "Deploy to production.",
+			Invocation:  abilityInvocationExplicit,
+			Path:        filepath.Join(s.AbilitiesDir, "deploy-prod", abilityFilename),
+		},
+		{
+			Name:        "explain-code",
+			Description: "Explain unfamiliar code.",
+			Path:        filepath.Join(s.AbilitiesDir, "explain-code", abilityFilename),
+		},
+	}
+	for label, got := range map[string]string{
+		"block": RenderAbilityBlock(s, abilities),
+		"index": RenderAbilityIndex(abilities),
+	} {
+		if !strings.Contains(got, "| **Direct only.** Deploy to production. |") {
+			t.Errorf("%s does not mark the explicit ability:\n%s", label, got)
+		}
+		if strings.Contains(got, "**Direct only.** Explain unfamiliar code.") {
+			t.Errorf("%s marks an auto ability as direct only:\n%s", label, got)
+		}
+	}
+}
+
+func TestRenderAbilityContractExcludesDirectOnlyFromSemanticSelection(t *testing.T) {
+	block := RenderAbilityBlock(ResolveAbilityScope("/home/user"), nil)
+	want := "4. Otherwise, choose semantically when an ability's description fits the task — never one\n" +
+		"   marked **Direct only.**, which loads only by its exact name, an exact trigger, or\n" +
+		"   `$ability <name>`.\n"
+	if !strings.Contains(block, want) {
+		t.Errorf("block missing the direct-only exception in step 4:\n%s", block)
+	}
+	if index := RenderAbilityIndex(nil); !strings.Contains(index, "never one marked **Direct only.**") {
+		t.Errorf("index intro missing the direct-only exception:\n%s", index)
+	}
+}
+
 func TestRenderAbilityBlockDelegatesAmbiguityToTheAgent(t *testing.T) {
 	got := RenderAbilityBlock(ResolveAbilityScope("/home/user"), nil)
 	for _, want := range []string{"candidates, not a conflict", "name the one you picked", "is NOT an invocation"} {

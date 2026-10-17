@@ -13,6 +13,7 @@ type AbilityInfo struct {
 	Name        string   `json:"name"`
 	Description string   `json:"description"`
 	Triggers    []string `json:"triggers"`
+	Invocation  string   `json:"invocation,omitempty"`
 	Path        string   `json:"path"`
 }
 
@@ -27,6 +28,7 @@ func AbilityList(s AbilityScope) ([]AbilityInfo, error) {
 			Name:        ability.Name,
 			Description: ability.Description,
 			Triggers:    ability.Triggers,
+			Invocation:  ability.Invocation,
 			Path:        ability.Path,
 		})
 	}
@@ -79,7 +81,11 @@ func renderAbilityListText(out io.Writer, abilities []AbilityInfo) {
 		if len(ability.Triggers) > 0 {
 			fmt.Fprintf(out, "  Triggers: %s\n", strings.Join(ability.Triggers, " · "))
 		}
-		fmt.Fprintf(out, "  Invoke: $ability %s\n", ability.Name)
+		if ability.Invocation == abilityInvocationExplicit {
+			fmt.Fprintf(out, "  Invoke: $ability %s (direct only — never selected by description)\n", ability.Name)
+		} else {
+			fmt.Fprintf(out, "  Invoke: $ability %s\n", ability.Name)
+		}
 		fmt.Fprintf(out, "  Source: %s\n", ability.Path)
 	}
 

@@ -164,7 +164,8 @@ func prepareSkillImport(path, library string) (skillImport, error) {
 // skillToAbility returns the ability's name and its ABILITY.md. A skill that
 // already fits is copied byte for byte; otherwise only its frontmatter is
 // re-encoded, to name it after its directory (as Claude Code does when name is
-// absent) and to fold a multi-line description onto the one line abilities need.
+// absent), to fold a multi-line description onto the one line abilities need,
+// and to carry disable-model-invocation over as invocation: explicit.
 func skillToAbility(content, dirName string) (string, string, error) {
 	m := frontmatterRe.FindStringSubmatchIndex(content)
 	if m == nil {
@@ -191,6 +192,14 @@ func skillToAbility(content, dirName string) (string, string, error) {
 		setMappingValue(fields, "description", flat)
 		changed = true
 	}
+	// disable-model-invocation is Claude Code's way of keeping a skill out of
+	// model selection; invocation: explicit is the ability equivalent. The
+	// original key stays, like every field hydra does not read, and an authored
+	// invocation key wins over the mapping.
+	if mappingNode(fields, "invocation") == nil && mappingBool(fields, "disable-model-invocation") {
+		appendMappingValue(fields, "invocation", abilityInvocationExplicit)
+		changed = true
+	}
 	if !changed {
 		return name, content, nil
 	}
@@ -208,12 +217,40 @@ func skillToAbility(content, dirName string) (string, string, error) {
 }
 
 func mappingValue(mapping *yaml.Node, key string) string {
-	for i := 0; i+1 < len(mapping.Content); i += 2 {
-		if mapping.Content[i].Value == key {
-			return mapping.Content[i+1].Value
-		}
+	if node := mappingNode(mapping, key); node != nil {
+		return node.Value
 	}
 	return ""
+}
+
+// mappingNode returns key's value node, or nil when the key is absent.
+func mappingNode(mapping *yaml.Node, key string) *yaml.Node {
+	for i := 0; i+1 < len(mapping.Content); i += 2 {
+		if mapping.Content[i].Value == key {
+			return mapping.Content[i+1]
+		}
+	}
+	return nil
+}
+
+// mappingBool reports whether key holds a YAML true. Anything else, including
+// a value that is not a boolean at all, reads as false.
+func mappingBool(mapping *yaml.Node, key string) bool {
+	node := mappingNode(mapping, key)
+	if node == nil || node.Kind != yaml.ScalarNode {
+		return false
+	}
+	var value bool
+	return node.Decode(&value) == nil && value
+}
+
+// appendMappingValue adds key at the end of the mapping, after whatever the
+// author wrote. Callers check the key is absent first.
+func appendMappingValue(mapping *yaml.Node, key, value string) {
+	mapping.Content = append(mapping.Content,
+		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key},
+		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: value},
+	)
 }
 
 // setMappingValue replaces key's value with a plain scalar, letting the

@@ -44,6 +44,22 @@ func TestRenderAbilityListTextIsHumanReadable(t *testing.T) {
 	}
 }
 
+func TestRenderAbilityListTextMarksDirectOnly(t *testing.T) {
+	abilities := []AbilityInfo{
+		{Name: "deploy-prod", Description: "Deploy.", Invocation: abilityInvocationExplicit, Path: "/a/ABILITY.md"},
+		{Name: "explain-code", Description: "Explain.", Path: "/b/ABILITY.md"},
+	}
+	var out bytes.Buffer
+	renderAbilityListText(&out, abilities)
+	got := out.String()
+	if !strings.Contains(got, "  Invoke: $ability deploy-prod (direct only — never selected by description)\n") {
+		t.Errorf("explicit ability not marked direct only:\n%s", got)
+	}
+	if strings.Contains(got, "$ability explain-code (direct only") {
+		t.Errorf("auto ability marked direct only:\n%s", got)
+	}
+}
+
 func TestRenderAbilityListTextExplainsEmptyCatalog(t *testing.T) {
 	var out bytes.Buffer
 	renderAbilityListText(&out, nil)

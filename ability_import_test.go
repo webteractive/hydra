@@ -253,6 +253,49 @@ func TestAbilityImportInitializesMissingLibrary(t *testing.T) {
 	}
 }
 
+func TestAbilityImportMapsDisableModelInvocationToExplicit(t *testing.T) {
+	s := initAbilityLibrary(t)
+	content := "---\nname: deploy-prod\ndescription: Deploy to production.\ndisable-model-invocation: true\n---\n\nBody.\n"
+	src := writeSkill(t, filepath.Join(t.TempDir(), "deploy-prod"), content)
+
+	if err := AbilityImport(s, []string{src}, false, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(s.AbilitiesDir, "deploy-prod", abilityFilename)
+	got := readFile(t, path)
+	ability, err := ParseAbility("deploy-prod", path, got)
+	if err != nil {
+		t.Fatalf("imported ability does not parse: %v\n%s", err, got)
+	}
+	if ability.Invocation != abilityInvocationExplicit {
+		t.Errorf("Invocation = %q, want explicit:\n%s", ability.Invocation, got)
+	}
+	for _, want := range []string{"disable-model-invocation: true", "\nBody.\n"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("imported ability lost %q:\n%s", want, got)
+		}
+	}
+}
+
+// An authored invocation key is the author's decision, and a skill that never
+// disabled model invocation needs no rewrite: both are copied byte for byte.
+func TestAbilityImportLeavesInvocationAsAuthored(t *testing.T) {
+	cases := map[string]string{
+		"authored invocation": "---\nname: keep-auto\ndescription: Keep it.\ndisable-model-invocation: true\ninvocation: auto\n---\n\nBody.\n",
+		"model invocation on": "---\nname: keep-auto\ndescription: Keep it.\ndisable-model-invocation: false\n---\n\nBody.\n",
+	}
+	for label, content := range cases {
+		s := initAbilityLibrary(t)
+		src := writeSkill(t, filepath.Join(t.TempDir(), "keep-auto"), content)
+		if err := AbilityImport(s, []string{src}, false, &bytes.Buffer{}); err != nil {
+			t.Fatalf("%s: %v", label, err)
+		}
+		if got := readFile(t, filepath.Join(s.AbilitiesDir, "keep-auto", abilityFilename)); got != content {
+			t.Errorf("%s: ABILITY.md was rewritten:\n%s", label, got)
+		}
+	}
+}
+
 func listDir(t *testing.T, dir string) string {
 	t.Helper()
 	var names []string

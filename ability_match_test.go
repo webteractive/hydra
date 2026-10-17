@@ -1,6 +1,21 @@
 package main
 
-import "testing"
+import (
+	"bytes"
+	"strings"
+	"testing"
+)
+
+func TestRenderAbilityMatchTextNoMatchExcludesDirectOnly(t *testing.T) {
+	var out bytes.Buffer
+	renderAbilityMatchText(&out, "prep for prod", nil)
+	got := out.String()
+	for _, want := range []string{"select semantically by description", "**Direct only.**", "never"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("no-match note missing %q:\n%s", want, got)
+		}
+	}
+}
 
 func matchFixture() []Ability {
 	return []Ability{
