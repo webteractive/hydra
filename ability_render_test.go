@@ -86,12 +86,12 @@ func TestRenderAbilityTableMarksDirectOnlyAbilities(t *testing.T) {
 func TestRenderAbilityContractExcludesDirectOnlyFromSemanticSelection(t *testing.T) {
 	block := RenderAbilityBlock(ResolveAbilityScope("/home/user"), nil)
 	want := "4. Otherwise, choose semantically when an ability's description fits the task — never one\n" +
-		"   marked **Direct only.**, which loads only by its exact name, an exact trigger, or\n" +
+		"   marked **Direct only.** Those load only by their exact name, an exact trigger, or\n" +
 		"   `$ability <name>`.\n"
 	if !strings.Contains(block, want) {
 		t.Errorf("block missing the direct-only exception in step 4:\n%s", block)
 	}
-	if index := RenderAbilityIndex(nil); !strings.Contains(index, "never one marked **Direct only.**") {
+	if index := RenderAbilityIndex(nil); !strings.Contains(index, "never one marked **Direct only.** Those load only by") {
 		t.Errorf("index intro missing the direct-only exception:\n%s", index)
 	}
 }

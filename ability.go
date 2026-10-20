@@ -78,7 +78,7 @@ func ParseAbility(bundleName, path, content string) (Ability, error) {
 	if strings.ContainsAny(a.Description, "\r\n") {
 		problems = append(problems, fmt.Errorf("description must be one line"))
 	}
-	switch invocation := strings.ToLower(strings.TrimSpace(fm.Invocation)); invocation {
+	switch strings.ToLower(strings.TrimSpace(fm.Invocation)) {
 	case "", abilityInvocationAuto:
 	case abilityInvocationExplicit:
 		a.Invocation = abilityInvocationExplicit

@@ -22,6 +22,7 @@ type skillImport struct {
 	Name     string
 	Content  string // the ABILITY.md to write
 	Triggers int
+	Explicit bool // invocation: explicit, reached by name and so needing no triggers
 }
 
 // AbilityImport turns Agent Skills into abilities. Every source is validated
@@ -68,7 +69,7 @@ func AbilityImport(s AbilityScope, paths []string, keep bool, out io.Writer) err
 
 	var problems []error
 	for _, imp := range imports {
-		if imp.Triggers == 0 {
+		if imp.Triggers == 0 && !imp.Explicit {
 			fmt.Fprintf(out, "%s has no triggers — add some to its %s, then run 'hydra ability sync'\n", imp.Name, abilityFilename)
 		}
 		if keep {
@@ -158,7 +159,14 @@ func prepareSkillImport(path, library string) (skillImport, error) {
 	if err != nil {
 		return skillImport{}, err
 	}
-	return skillImport{Source: source, Resolved: resolved, Name: name, Content: content, Triggers: len(ability.Triggers)}, nil
+	return skillImport{
+		Source:   source,
+		Resolved: resolved,
+		Name:     name,
+		Content:  content,
+		Triggers: len(ability.Triggers),
+		Explicit: ability.Invocation == abilityInvocationExplicit,
+	}, nil
 }
 
 // skillToAbility returns the ability's name and its ABILITY.md. A skill that
@@ -196,7 +204,7 @@ func skillToAbility(content, dirName string) (string, string, error) {
 	// model selection; invocation: explicit is the ability equivalent. The
 	// original key stays, like every field hydra does not read, and an authored
 	// invocation key wins over the mapping.
-	if mappingNode(fields, "invocation") == nil && mappingBool(fields, "disable-model-invocation") {
+	if mappingNode(fields, "invocation") == nil && claudeCodeTrue(mappingNode(fields, "disable-model-invocation")) {
 		appendMappingValue(fields, "invocation", abilityInvocationExplicit)
 		changed = true
 	}
@@ -233,15 +241,18 @@ func mappingNode(mapping *yaml.Node, key string) *yaml.Node {
 	return nil
 }
 
-// mappingBool reports whether key holds a YAML true. Anything else, including
-// a value that is not a boolean at all, reads as false.
-func mappingBool(mapping *yaml.Node, key string) bool {
-	node := mappingNode(mapping, key)
+// claudeCodeTrue reports whether a frontmatter value is true the way Claude
+// Code reads a boolean field: a scalar spelling 1, true, yes, or on in any case,
+// quoted or not. Anything else, including an absent key, reads as false.
+func claudeCodeTrue(node *yaml.Node) bool {
 	if node == nil || node.Kind != yaml.ScalarNode {
 		return false
 	}
-	var value bool
-	return node.Decode(&value) == nil && value
+	switch strings.ToLower(strings.TrimSpace(node.Value)) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
 }
 
 // appendMappingValue adds key at the end of the mapping, after whatever the

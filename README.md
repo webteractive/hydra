@@ -284,9 +284,10 @@ twice — once as a skill, once as an ability. `--keep` leaves it where it is.
 
 - The ability takes the skill's `name`, or its directory name when `name` is absent.
 - A multi-line description is folded onto one line; every other frontmatter field is kept.
-- A skill with `disable-model-invocation: true` is imported with `invocation: explicit`
-  added, so it stays out of semantic selection as an ability too. A skill that already
-  sets `invocation` keeps it as authored.
+- A skill with `disable-model-invocation` set to true is imported with `invocation: explicit`
+  added, so it stays out of semantic selection as an ability too. True is read the way
+  Claude Code reads it: `true`, `yes`, `on`, or `1` in any case, quoted or not. A skill
+  that already sets `invocation` keeps it as authored.
 - Skills have no triggers, so imported abilities start without any. Add them, run
   `hydra ability sync`, and prove them with `hydra ability match`.
 - Every path is checked before anything is written. A missing `SKILL.md`, a name already

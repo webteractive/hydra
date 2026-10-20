@@ -24,10 +24,14 @@ func AbilityList(s AbilityScope) ([]AbilityInfo, error) {
 	}
 	infos := make([]AbilityInfo, 0, len(abilities))
 	for _, ability := range abilities {
+		triggers := ability.Triggers
+		if triggers == nil {
+			triggers = []string{} // [] rather than null in --json
+		}
 		infos = append(infos, AbilityInfo{
 			Name:        ability.Name,
 			Description: ability.Description,
-			Triggers:    ability.Triggers,
+			Triggers:    triggers,
 			Invocation:  ability.Invocation,
 			Path:        ability.Path,
 		})

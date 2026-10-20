@@ -253,26 +253,37 @@ func TestAbilityImportInitializesMissingLibrary(t *testing.T) {
 	}
 }
 
+// Claude Code reads disable-model-invocation as true when it is a boolean true
+// or a string or number spelling 1, true, yes, or on, in any case; the import
+// maps every one of those.
 func TestAbilityImportMapsDisableModelInvocationToExplicit(t *testing.T) {
-	s := initAbilityLibrary(t)
-	content := "---\nname: deploy-prod\ndescription: Deploy to production.\ndisable-model-invocation: true\n---\n\nBody.\n"
-	src := writeSkill(t, filepath.Join(t.TempDir(), "deploy-prod"), content)
+	for _, value := range []string{"true", `"true"`, "TRUE", "yes", "on", "1", `" Yes "`} {
+		s := initAbilityLibrary(t)
+		content := "---\nname: deploy-prod\ndescription: Deploy to production.\ndisable-model-invocation: " + value + "\n---\n\nBody.\n"
+		src := writeSkill(t, filepath.Join(t.TempDir(), "deploy-prod"), content)
 
-	if err := AbilityImport(s, []string{src}, false, &bytes.Buffer{}); err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(s.AbilitiesDir, "deploy-prod", abilityFilename)
-	got := readFile(t, path)
-	ability, err := ParseAbility("deploy-prod", path, got)
-	if err != nil {
-		t.Fatalf("imported ability does not parse: %v\n%s", err, got)
-	}
-	if ability.Invocation != abilityInvocationExplicit {
-		t.Errorf("Invocation = %q, want explicit:\n%s", ability.Invocation, got)
-	}
-	for _, want := range []string{"disable-model-invocation: true", "\nBody.\n"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("imported ability lost %q:\n%s", want, got)
+		var out bytes.Buffer
+		if err := AbilityImport(s, []string{src}, false, &out); err != nil {
+			t.Fatalf("%s: %v", value, err)
+		}
+		path := filepath.Join(s.AbilitiesDir, "deploy-prod", abilityFilename)
+		got := readFile(t, path)
+		ability, err := ParseAbility("deploy-prod", path, got)
+		if err != nil {
+			t.Fatalf("%s: imported ability does not parse: %v\n%s", value, err, got)
+		}
+		if ability.Invocation != abilityInvocationExplicit {
+			t.Errorf("%s: Invocation = %q, want explicit:\n%s", value, ability.Invocation, got)
+		}
+		for _, want := range []string{"disable-model-invocation: " + value, "\nBody.\n"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("%s: imported ability lost %q:\n%s", value, want, got)
+			}
+		}
+		// A direct-only ability is reached by its name, so the missing-triggers
+		// nudge would contradict doctor, which does not ask it for any.
+		if strings.Contains(out.String(), "has no triggers") {
+			t.Errorf("%s: import asks a direct-only ability for triggers:\n%s", value, out.String())
 		}
 	}
 }
@@ -283,6 +294,8 @@ func TestAbilityImportLeavesInvocationAsAuthored(t *testing.T) {
 	cases := map[string]string{
 		"authored invocation": "---\nname: keep-auto\ndescription: Keep it.\ndisable-model-invocation: true\ninvocation: auto\n---\n\nBody.\n",
 		"model invocation on": "---\nname: keep-auto\ndescription: Keep it.\ndisable-model-invocation: false\n---\n\nBody.\n",
+		"no as text":          "---\nname: keep-auto\ndescription: Keep it.\ndisable-model-invocation: \"no\"\n---\n\nBody.\n",
+		"unrecognised text":   "---\nname: keep-auto\ndescription: Keep it.\ndisable-model-invocation: always\n---\n\nBody.\n",
 	}
 	for label, content := range cases {
 		s := initAbilityLibrary(t)

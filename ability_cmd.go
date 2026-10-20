@@ -86,9 +86,10 @@ func newAbilityImportCmd(out io.Writer) *cobra.Command {
 			"and remove the skill. Pass --keep to leave the skill where it is.\n\n" +
 			"The ability is named after the skill's name, else its directory. A\n" +
 			"multi-line description is folded onto one line; every other field is kept.\n" +
-			"disable-model-invocation: true adds invocation: explicit, unless the skill\n" +
-			"already sets invocation. Skills carry no triggers, so add some before\n" +
-			"relying on one.\n\n" +
+			"disable-model-invocation set to true (true, yes, on, or 1, as Claude Code\n" +
+			"reads it) adds invocation: explicit, unless the skill already sets\n" +
+			"invocation. Skills carry no triggers, so add some before relying on one;\n" +
+			"a direct-only ability needs none, being reached by its name.\n\n" +
 			"Every path is checked before anything is written, and no skill is removed\n" +
 			"until the sync succeeds. A skill reached through a link has only the link\n" +
 			"removed: its target is left for whatever tool owns it.",

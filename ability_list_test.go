@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -17,6 +18,24 @@ func TestAbilityList(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].Name != "testing-notes" || got[0].Path == "" {
 		t.Errorf("unexpected list: %+v", got)
+	}
+}
+
+// An ability without triggers lists them as [], so a script can range over the
+// field without a null check.
+func TestAbilityListJSONReportsEmptyTriggers(t *testing.T) {
+	s := ResolveAbilityScope(t.TempDir())
+	mustWrite(t, filepath.Join(s.AbilitiesDir, "testing-notes", abilityFilename), validAbility("testing-notes", "Generate QA notes."))
+	got, err := AbilityList(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"triggers":[]`) {
+		t.Errorf("triggers not reported as an empty list: %s", data)
 	}
 }
 
