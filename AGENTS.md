@@ -74,7 +74,10 @@ invoked through the generated `$ability` router. Commands: `init`, `sync`, `add`
 - `ability_match.go` — offline phrase resolution (`hydra ability match`), mirroring the
   name-then-trigger contract the discovery block gives the agent.
 - `ability_render.go` / `ability_harness.go` — external catalog, discovery block, and
-  native router adapters.
+  native router adapters. The catalog (`index.md`) names each file relative to itself
+  (`<name>/ABILITY.md`): it lives in the library, which may be committed and shared between
+  machines with different home directories. The block and routers live in the harness's
+  own directory and keep the absolute library path, since they load from anywhere.
 - `ability_lifecycle.go` / `ability_list.go` / `ability_doctor.go` / `ability_cmd.go` —
   the global ability command group.
 - `ability_import.go` — `hydra ability import`: turns Agent Skill directories into

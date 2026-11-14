@@ -62,8 +62,9 @@ description: Generate manual QA notes from completed code changes.
 name and contain only lowercase letters, digits, and hyphens. Supporting files are loaded
 only when the ability directs the agent to read or execute them.
 
-The generated `index.md` contains each ability's name, description, and absolute
-`ABILITY.md` path. It contains no ability bodies and is not inlined into agent instruction
+The generated `index.md` contains each ability's name, description, and `ABILITY.md`
+path relative to the index (`<name>/ABILITY.md`), so a library shared between machines
+renders identically on each. It contains no ability bodies and is not inlined into agent instruction
 files.
 
 ## Discovery and invocation

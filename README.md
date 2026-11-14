@@ -238,6 +238,8 @@ unless it is marked **Direct only.** Either way it then loads the complete `ABIL
 Only names, triggers, and descriptions are inlined — the `File` column stays in
 `index.md`, since every ability resolves to `~/.hydra/abilities/<name>/ABILITY.md` and
 standing context is the one place a redundant column costs something on every turn.
+That column is relative to the index (`<name>/ABILITY.md`), so a library committed to a
+dotfiles repository renders the same index on every machine, whatever its home directory.
 
 A trigger fires only when it is what the user actually said — the whole request, aside
 from case, punctuation, and politeness like "can you" or "please". A trigger occurring

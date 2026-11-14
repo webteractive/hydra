@@ -13,7 +13,7 @@ func TestRenderAbilityIndex(t *testing.T) {
 		Path:        "/home/user/.hydra/abilities/testing-notes/ABILITY.md",
 	}}
 	got := RenderAbilityIndex(abilities)
-	for _, want := range []string{"exact normalized ability-name match", "`testing-notes`", `Generate QA notes \| with coverage.`, abilities[0].Path} {
+	for _, want := range []string{"exact normalized ability-name match", "`testing-notes`", `Generate QA notes \| with coverage.`, "| testing-notes/ABILITY.md |"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("index missing %q:\n%s", want, got)
 		}
@@ -119,8 +119,28 @@ func TestRenderAbilityBlockOmitsDerivablePaths(t *testing.T) {
 	if !strings.Contains(got, "<name>/"+abilityFilename) {
 		t.Errorf("block must tell the agent how to resolve an ability path:\n%s", got)
 	}
-	if !strings.Contains(RenderAbilityIndex(abilities), filepath.ToSlash(abilities[0].Path)) {
-		t.Error("index.md should still carry full paths")
+	if !strings.Contains(RenderAbilityIndex(abilities), "| testing-notes/"+abilityFilename+" |") {
+		t.Error("index.md should still carry each ability's file")
+	}
+}
+
+// index.md is committed with the library and shared between machines whose
+// home directories differ, so it must not name any of them.
+func TestRenderAbilityIndexHoldsNoAbsolutePath(t *testing.T) {
+	s := ResolveAbilityScope("/home/user")
+	abilities := []Ability{{
+		Name:        "testing-notes",
+		Description: "Generate QA notes.",
+		Path:        filepath.Join(s.AbilitiesDir, "testing-notes", abilityFilename),
+	}}
+	got := RenderAbilityIndex(abilities)
+	for _, absent := range []string{"/home/user", filepath.ToSlash(s.AbilitiesDir)} {
+		if strings.Contains(got, absent) {
+			t.Errorf("index.md must not contain %q:\n%s", absent, got)
+		}
+	}
+	if !strings.Contains(got, "relative to this index") {
+		t.Errorf("index.md must say what its paths are relative to:\n%s", got)
 	}
 }
 
